@@ -1,0 +1,66 @@
+{
+  "id": "fitnesstriage0001",
+  "name": "Fitness Superstore — Inbound Triage (Phase 1, Docker)",
+  "nodes": [
+    {
+      "parameters": {
+        "postProcessAction": "read",
+        "format": "simple",
+        "options": {}
+      },
+      "id": "node-imap-trigger",
+      "name": "Email Trigger (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [240, 320],
+      "credentials": {
+        "imap": { "id": "REPLACE_WITH_IMAP_CRED_ID", "name": "Gmail IMAP (app password)" }
+      },
+      "notes": "imap.gmail.com:993 SSL, user=mike@brownmine.com, password=Gmail app password. Mailbox INBOX."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize the IMAP email into the triage input contract.\nconst it = $input.first().json;\nconst headers = it.headers || {};\nconst payload = {\n  from: it.from || headers.from || '',\n  subject: it.subject || headers.subject || '',\n  body: it.textPlain || it.text || it.textHtml || it.snippet || ''\n};\nreturn [{ json: { payload } }];"
+      },
+      "id": "node-normalize",
+      "name": "Normalize email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8088/triage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.payload }}",
+        "options": { "timeout": 240000 }
+      },
+      "id": "node-openclaw",
+      "name": "OpenClaw triage (HTTP bridge)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 320],
+      "notes": "POSTs the email to the host bridge (127.0.0.1:8088) which runs the fitness-triage OpenClaw skill, creates the Gmail DRAFT (IMAP append, never sends) and the Monday card, and returns the routing-decision JSON. Reachable because the container uses --network host."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Surface the routing decision for visibility / downstream use.\nconst r = $json || {};\nconst d = r.decision || {};\nreturn [{ json: {\n  primary_lane: d.primary_lane,\n  action: d.action,\n  approval: d.approval_required ? d.approver_role : 'none',\n  controlling_sop: d.controlling_sop,\n  sop_conflict: d.sop_conflict,\n  confidence: d.confidence,\n  draft_created: !!d.draft,\n  decision: d\n}}];"
+      },
+      "id": "node-surface",
+      "name": "Surface decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 320]
+    }
+  ],
+  "connections": {
+    "Email Trigger (IMAP)": { "main": [[{ "node": "Normalize email", "type": "main", "index": 0 }]] },
+    "Normalize email": { "main": [[{ "node": "OpenClaw triage (HTTP bridge)", "type": "main", "index": 0 }]] },
+    "OpenClaw triage (HTTP bridge)": { "main": [[{ "node": "Surface decision", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

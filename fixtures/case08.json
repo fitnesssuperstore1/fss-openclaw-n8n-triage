@@ -1,0 +1,14 @@
+{
+  "case_id": 8,
+  "from": "rachel.owens@example.com",
+  "to": "support@frenchfitness.com",
+  "subject": "My ticket was closed but nothing was fixed",
+  "body": "I got an email saying my support ticket was resolved and closed, but my issue with the missing bench attachment is absolutely NOT fixed. Why was it closed? Please reopen.",
+  "gorgias": {
+    "ticket": "GOR-3391",
+    "status": "closed",
+    "resolution": "marked resolved by agent"
+  },
+  "expected_lane": "Escalate / Needs Human Review",
+  "note": "Gorgias=closed vs customer=unresolved -> source conflict -> escalate"
+}

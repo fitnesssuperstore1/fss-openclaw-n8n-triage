@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "fitness-superstore/audit_check.json",
+  "title": "audit_check output",
+  "description": "Strict output schema for the audit_check OpenClaw skill. pass, force_escalate, violations, notify_role, and escalation_reason must agree as a set: pass=true requires everything else to be the no-violations state, and pass=false requires force_escalate=true with a non-null reason and role.",
+  "type": "object",
+  "required": [
+    "pass",
+    "violations",
+    "force_escalate",
+    "escalation_reason",
+    "notify_role"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "pass": { "type": "boolean" },
+    "violations": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 3, "maxLength": 200 },
+      "maxItems": 20
+    },
+    "force_escalate": { "type": "boolean" },
+    "escalation_reason": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "minLength": 10, "maxLength": 400 }
+      ]
+    },
+    "notify_role": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "enum": ["CS Lead", "Ops Manager", "Owner"]
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "description": "pass=true ⇔ force_escalate=false ⇔ violations=[] ⇔ escalation_reason=null ⇔ notify_role=null.",
+      "if": { "properties": { "pass": { "const": true } } },
+      "then": {
+        "properties": {
+          "force_escalate": { "const": false },
+          "violations": { "type": "array", "maxItems": 0 },
+          "escalation_reason": { "type": "null" },
+          "notify_role": { "type": "null" }
+        }
+      }
+    },
+    {
+      "description": "pass=false REQUIRES force_escalate=true, a non-null reason, and a non-null notify_role.",
+      "if": { "properties": { "pass": { "const": false } } },
+      "then": {
+        "properties": {
+          "force_escalate": { "const": true },
+          "escalation_reason": { "type": "string", "minLength": 10 },
+          "notify_role": {
+            "type": "string",
+            "enum": ["CS Lead", "Ops Manager", "Owner"]
+          }
+        }
+      }
+    }
+  ]
+}

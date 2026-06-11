@@ -1,0 +1,15 @@
+{
+  "case_id": 1,
+  "from": "dana.coleman@example.com",
+  "to": "sales@frenchfitness.com",
+  "subject": "When will my functional trainer ship?",
+  "body": "Hi, I ordered the commercial functional trainer (order #FS-10241) two weeks ago. My card was charged but I still don't see any tracking. Can you tell me when it will actually ship? Thanks, Dana",
+  "shopify": {
+    "order": "FS-10241",
+    "financial_status": "paid",
+    "fulfillment_status": "unfulfilled",
+    "tracking": null,
+    "item": "Commercial Functional Trainer"
+  },
+  "expected_lane": "New Orders / Pending Shipments"
+}

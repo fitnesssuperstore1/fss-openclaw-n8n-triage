@@ -1,0 +1,17 @@
+{
+  "case_id": 3,
+  "from": "priya.nair@example.com",
+  "to": "service@frenchfitness.com",
+  "subject": "Delivery + installation for my smith machine",
+  "body": "I'd like to coordinate freight delivery AND have your team install the Smith machine and cable crossover (order #FS-10310). Can we line up delivery and then installation? I have a basement gym, stairs involved.",
+  "shopify": {
+    "order": "FS-10310",
+    "financial_status": "paid",
+    "fulfillment_status": "fulfilled",
+    "tracking": "PRO 881-2210 (LTL freight)",
+    "item": "Smith Machine + Cable Crossover",
+    "install_addon": true
+  },
+  "expected_lane": "Install / Service / Warranty",
+  "expected_secondary": "Shipping CS"
+}

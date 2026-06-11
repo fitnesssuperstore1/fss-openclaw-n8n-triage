@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "fitness-superstore/scope_gate.json",
+  "title": "scope_gate output",
+  "description": "Strict output schema for the scope_gate OpenClaw skill. Decides whether an inbound email is in scope for Phase 1 internal/leadership triage, or out of scope (Gorgias-owned customer email, or unclear). Customer-facing addresses MUST resolve to scope_label='gorgias_owned' and in_scope=false. Unclear inputs MUST default to in_scope=false with scope_label='unknown'.",
+  "type": "object",
+  "required": [
+    "in_scope",
+    "scope_label",
+    "reason",
+    "signals"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "in_scope": {
+      "type": "boolean",
+      "description": "true when the email is internal or leadership and should be processed by the chain; false when out of scope (Gorgias-owned or unknown)."
+    },
+    "scope_label": {
+      "type": "string",
+      "enum": [
+        "internal",
+        "leadership",
+        "gorgias_owned",
+        "unknown"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 300,
+      "description": "One sentence naming the specific rule and signals that drove the decision."
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "maxItems": 10,
+      "description": "Literal address fragments, signature words, or subject tags pulled from the email that justified the scope decision."
+    }
+  },
+  "allOf": [
+    {
+      "description": "When scope_label is gorgias_owned, in_scope MUST be false. Customer-facing recipients are never processed by this Phase 1 system.",
+      "if": {
+        "properties": {
+          "scope_label": {
+            "const": "gorgias_owned"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "in_scope": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "description": "When scope_label is unknown, in_scope MUST be false. The safe default for an unclear email is to NOT process it.",
+      "if": {
+        "properties": {
+          "scope_label": {
+            "const": "unknown"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "in_scope": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "description": "When scope_label is internal or leadership, in_scope MUST be true. Those two labels are by definition the in-scope cases.",
+      "if": {
+        "properties": {
+          "scope_label": {
+            "enum": [
+              "internal",
+              "leadership"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "in_scope": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}

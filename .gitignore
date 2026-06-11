@@ -1,0 +1,120 @@
+# --------------------------------------------------------------------------
+# Fitness Superstore — triage system .gitignore
+#
+# Security rule (MILESTONE_1.md §4.3): NO secrets in any commit. Ever.
+# Even temporarily. Git history is forever. The patterns below cover every
+# kind of file that has ever held — or could ever hold — a secret in this
+# repo. If you add a new credential file or key path, add the pattern HERE
+# before staging anything.
+# --------------------------------------------------------------------------
+
+# === Secrets, credentials, keys ===
+.env
+.env.*
+!.env.example
+env.sh
+!env.sh.example
+secrets/
+secret/
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+credentials.json
+client_secret*.json
+token.json
+*token*.json
+service-account*.json
+*.kdbx
+auth-profiles.json
+!auth-profiles.example.json
+
+# === TLS / HTTPS certificates (Traefik / Let's Encrypt) ===
+# acme.json holds the ACME account key + all issued cert PRIVATE keys.
+# It is .json so the *.key/*.pem patterns above do NOT catch it. Never commit.
+infra/traefik/letsencrypt/
+acme.json
+*.json.acme
+
+# Anything whose name suggests it carries a secret
+*secret*
+*private*
+*credential*
+*passwd*
+*password*
+
+# === Local config that varies per deployment ===
+config/env.sh
+!config/env.sh.example
+# board-specific column / group ids; deployment-local
+config/monday-groups.json
+!config/monday-groups.example.json
+
+# === Runtime artifacts produced by the chain / bridge ===
+# per-request decision JSONs (req-*.json) — noisy + may contain customer text
+out/
+# ad-hoc temp prefixes
+/tmp-*
+# per-request chain stderr
+*.triage.err
+bridge.log
+gateway.log
+*.log
+
+# === Editor / OS junk ===
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.bak
+*.orig
+*~
+.idea/
+.vscode/
+*.iml
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# === Node (in case the future repo brings in any node tooling) ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+
+# === Build / dist ===
+build/
+dist/
+*.tar.gz
+*.zip
+
+# === Docker scratch ===
+docker-compose.override.yml
+.docker-volumes/
+
+# === IDE-generated test artifacts ===
+.coverage
+.cache/
+coverage.xml
+htmlcov/
+
+# === Loose workflow backup copies (kept on disk, never committed) ===
+# The canonical workflows live in n8n/workflows/ (seeded by n8n-import).
+# These top-level copies are local backups only — ignore them but NOT
+# the ones in n8n/workflows/.
+/n8n/*.workflow.json

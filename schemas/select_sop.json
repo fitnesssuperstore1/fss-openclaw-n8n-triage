@@ -1,0 +1,119 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "fitness-superstore/select_sop.json",
+  "title": "select_sop output",
+  "description": "Strict output schema for the select_sop OpenClaw skill. Enforces Active > Reference > Archived hierarchy: use_for_drafting can only be true when sop_status is Active.",
+  "type": "object",
+  "required": [
+    "sop_id",
+    "sop_status",
+    "use_for_drafting",
+    "archived_conflict_noted",
+    "archived_conflict_description",
+    "fallback_action"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "sop_id": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^(SOP|REF|ARCH)-[0-9]{2}$"
+        }
+      ]
+    },
+    "sop_status": {
+      "type": "string",
+      "enum": [
+        "Active",
+        "Reference",
+        "Archived",
+        "None"
+      ]
+    },
+    "use_for_drafting": {
+      "type": "boolean"
+    },
+    "archived_conflict_noted": {
+      "type": "boolean"
+    },
+    "archived_conflict_description": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 300
+        }
+      ]
+    },
+    "fallback_action": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "escalate",
+        "hold",
+        "route"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "description": "use_for_drafting=true REQUIRES sop_status=Active. No exceptions.",
+      "if": {
+        "properties": {
+          "use_for_drafting": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "sop_status": {
+            "const": "Active"
+          }
+        }
+      }
+    },
+    {
+      "description": "If use_for_drafting is true, fallback_action must be draft.",
+      "if": {
+        "properties": {
+          "use_for_drafting": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "fallback_action": {
+            "const": "draft"
+          }
+        }
+      }
+    },
+    {
+      "description": "archived_conflict_description must be present when archived_conflict_noted is true.",
+      "if": {
+        "properties": {
+          "archived_conflict_noted": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "archived_conflict_description": {
+            "type": "string",
+            "minLength": 10
+          }
+        }
+      }
+    }
+  ]
+}

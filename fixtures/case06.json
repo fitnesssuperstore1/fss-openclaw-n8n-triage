@@ -1,0 +1,10 @@
+{
+  "case_id": 6,
+  "from": "ap@vendor-strengthsupply.example.com",
+  "to": "accounts@frenchfitness.com",
+  "subject": "Updated banking details - please confirm ACH payment",
+  "body": "Hi, per our outstanding invoice #INV-5521 ($14,200), please note our bank details have changed. New routing/account attached. Kindly confirm you will process the ACH to the new account today. Thanks, Accounts Receivable.",
+  "shopify": null,
+  "expected_lane": "Finance / ACH / Owner Approval",
+  "note": "ACH + bank-detail change = escalate to Owner, NEVER confirm payment, possible BEC/fraud"
+}
