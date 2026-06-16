@@ -210,7 +210,7 @@ def make_route_decision(primary_lane, sop, reason, route_to, classification_conf
                         sop_conflict=None, internal_note=""):
     """Terminal 'route' decision: internal team task, no human judgment needed.
     Distinct from 'escalate' so n8n can branch on action and skip the approval
-    Slack node entirely."""
+    step entirely."""
     return {
         "primary_lane": primary_lane,
         "controlling_sop": sop,
@@ -514,13 +514,20 @@ def run_engine(email, sop_source, schema_errors, session_tag):
     # All four skills passed — emit a draft decision in the shape that
     # downstream code already consumes.
     # ------------------------------------------------------------------
+    # Drafts that need a human OK before the Gmail draft is created use the
+    # `draft_pending_approval` action so the main n8n workflow does NOT draft
+    # directly — the Monday card is stamped Awaiting Review and WF2 creates the
+    # Gmail draft only after approval. A plain `draft` (approval_required False)
+    # is drafted directly by the workflow.
+    approval_required = True
+    draft_action = "draft_pending_approval" if approval_required else "draft"
     print(json.dumps({
         "primary_lane": lane,
         "controlling_sop": controlling_sop,
         "sop_conflict": sop_conflict,
         "confidence": confidence,
-        "action": "draft",
-        "approval_required": True,
+        "action": draft_action,
+        "approval_required": approval_required,
         "approver_role": draft.get("approver_role", "CS Lead"),
         "escalation_reason": None,
         "draft": {

@@ -48,9 +48,10 @@ Validation that downstream code applies (do not violate):
 
 1. **Customer-facing recipient address → out of scope (Gorgias-owned).**
    If the `to` field contains any of the following address fragments (case-insensitive):
+   - `sales@`
    - `sales.cs@`
    - `shipping.cs@`
-   - `support@frenchfitness.com`
+   - `support@`
    - `service@`
    - `cs@`
    - `customer@`
@@ -64,7 +65,7 @@ Validation that downstream code applies (do not violate):
    → `in_scope: true`, `scope_label: "leadership"`.
 
 3. **Internal sender + internal/operational recipient → in scope (internal).**
-   If the `from` field is internal AND the `to` field is an operational/internal inbox (`team@`, `ops@`, `internal@`, `content@`, `merch@`, `warehouse@`, `logistics@`, `accounts-payable@`, named ops team address)
+   If the `from` field is internal AND the `to` field is an operational/internal inbox (`team@`, `ops@`, `triage@`, `internal@`, `content@`, `merch@`, `warehouse@`, `logistics@`, `accounts@`, `accounts-payable@`, `finance@`, `product@`, named ops team address)
    → `in_scope: true`, `scope_label: "internal"`.
 
 4. **Unclear or missing signals → safe default of out of scope.**

@@ -118,3 +118,18 @@ htmlcov/
 # These top-level copies are local backups only — ignore them but NOT
 # the ones in n8n/workflows/.
 /n8n/*.workflow.json
+
+# === Internal / explanatory material — NOT part of the deliverable repo ===
+# Moved into tmp/ so the team can see exactly what was pulled out of the repo.
+# Never committed or pushed.
+tmp/
+*.pdf
+/LOOM_SCRIPT.md
+/DELIVERABLES.md
+/MILESTONE_1.md
+/MILESTONE_1_STATUS.md
+/docs/MILESTONE_2_ACCESS.md
+/docs/GMAIL_INTERNAL_NOTES_SPIKE.md
+/docs/PRE_COMMIT_CHECKLIST.md
+/docs/TEST_CASES.md
+/docs/TEST_RUN_RESULTS.md

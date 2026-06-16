@@ -139,14 +139,12 @@ for node, src in walk_nodes(wf, "workflow"):
     # 3) Any node with a banned operation regardless of type (covers generic
     # send nodes that don't have 'gmail' in their type string)
     if operation.lower() in BANNED_OPERATIONS and "gmail" not in ntype.lower():
-        # Slack send-and-wait is okay (it's a Slack approval node, not customer
-        # email) — only flag if the resource looks like email or messaging
-        # outbound. Be conservative: flag everything for human review.
-        if "slack" not in ntype.lower():
-            violations.append({
-                "node": nname, "type": ntype, "operation": operation,
-                "reason": "node uses a send/reply/forward operation",
-            })
+        # Any non-Gmail node using a send/reply/forward operation is flagged for
+        # human review — the workflow must contain no outbound-send nodes.
+        violations.append({
+            "node": nname, "type": ntype, "operation": operation,
+            "reason": "node uses a send/reply/forward operation",
+        })
 
 print(f"verify_no_send: scanned {nodes_inspected} node(s) in {path}")
 if not violations:

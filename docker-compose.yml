@@ -116,6 +116,7 @@ services:
       - ./sops:/root/Arvin/sops:ro
       - ./fixtures:/root/Arvin/fixtures:ro
       - ./config:/root/Arvin/config:ro
+      - ./scripts:/root/Arvin/scripts:ro
       - ./skills:/root/.openclaw/workspace/skills:ro
       - ${HOME}/secrets:/root/secrets:ro
       - bridge_claw_state:/root/.openclaw/agents
