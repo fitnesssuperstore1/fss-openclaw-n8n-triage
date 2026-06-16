@@ -70,6 +70,7 @@ Thumbs.db
 *.swp
 *.swo
 *.bak
+*.bak.*
 *.orig
 *~
 .idea/
