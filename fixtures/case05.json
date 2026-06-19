@@ -1,0 +1,14 @@
+{
+  "case_id": 5,
+  "from": "outfitting@crossfit-eastside.example.com",
+  "to": "sales@frenchfitness.com",
+  "subject": "Financing options before I order?",
+  "body": "We're outfitting a new gym and looking at about $28k of equipment. Do you offer financing or payment plans before we place the order? What are the terms?",
+  "shopify": {
+    "order": null,
+    "financial_status": null,
+    "note": "no order exists yet"
+  },
+  "expected_lane": "Sales CS",
+  "note": "consumer/business financing pre-sale, NOT vendor ACH"
+}

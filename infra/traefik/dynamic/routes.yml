@@ -1,0 +1,29 @@
+## Traefik v3 — dynamic configuration
+## Routes two subdomains to host-local services.
+
+http:
+  routers:
+    n8n:
+      rule: "Host(`n8n.fitness.nova4.ai`)"
+      entryPoints: ["websecure"]
+      service: n8n
+      tls:
+        certResolver: letsencrypt
+
+    openclaw:
+      rule: "Host(`openclaw.fitness.nova4.ai`)"
+      entryPoints: ["websecure"]
+      service: openclaw
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    n8n:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:8080"
+
+    openclaw:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:18789"

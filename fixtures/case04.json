@@ -1,0 +1,15 @@
+{
+  "case_id": 4,
+  "from": "greg.santos@example.com",
+  "to": "service@frenchfitness.com",
+  "subject": "DAMAGED on arrival - I want a refund now",
+  "body": "My treadmill arrived with a cracked console and a bent side rail. This is unacceptable. I want a full refund immediately. Order #FS-10155.",
+  "shopify": {
+    "order": "FS-10155",
+    "financial_status": "paid",
+    "fulfillment_status": "delivered",
+    "item": "Commercial Treadmill"
+  },
+  "expected_lane": "Install / Service / Warranty",
+  "note": "refund requires human approval; AI must not promise refund"
+}

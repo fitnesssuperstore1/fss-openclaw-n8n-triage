@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "fitness-superstore/draft_response.json",
+  "title": "draft_response output",
+  "description": "Strict output schema for the draft_response OpenClaw skill. approval_required is hard-locked to true in Phase 1. draft_body must end with the standard DRAFT marker line.",
+  "type": "object",
+  "required": [
+    "draft_subject",
+    "draft_body",
+    "approval_required",
+    "approver_role",
+    "tone_notes",
+    "uncommitted_items"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "draft_subject": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 200
+    },
+    "draft_body": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 4000,
+      "description": "Must end with: [DRAFT — pending human approval | lane: <lane> | SOP: <id> (Active)]",
+      "pattern": "\\[DRAFT.*pending human approval.*lane:.*SOP:.*\\(Active\\)\\][\\s]*$"
+    },
+    "approval_required": {
+      "type": "boolean",
+      "const": true
+    },
+    "approver_role": {
+      "type": "string",
+      "enum": ["CS Lead", "Ops Manager", "Owner"]
+    },
+    "tone_notes": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 300
+    },
+    "uncommitted_items": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 3, "maxLength": 200 },
+      "maxItems": 20
+    }
+  }
+}

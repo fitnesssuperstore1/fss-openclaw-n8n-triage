@@ -1,0 +1,15 @@
+{
+  "case_id": 9,
+  "from": "tom.becker@example.com",
+  "to": "support@frenchfitness.com",
+  "subject": "UPS says delivered - I never got it",
+  "body": "UPS tracking 1Z-marked my package as delivered yesterday but there's nothing here. It was the set of resistance bands and a barbell collar (small box). Can you help? I checked with neighbors already.",
+  "shopify": {
+    "order": "FS-10288",
+    "fulfillment_status": "delivered",
+    "tracking": "1Z9999W99999999999 (UPS parcel)",
+    "item": "Resistance Bands + Barbell Collars"
+  },
+  "expected_lane": "Parcel / Small Package",
+  "note": "UPS small parcel, NOT freight"
+}

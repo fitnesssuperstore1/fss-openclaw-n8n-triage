@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "fitness-superstore/classify_email.json",
+  "title": "classify_email output",
+  "description": "Strict output schema for the classify_email OpenClaw skill. The 8 lanes are an exhaustive enum and never extensible at runtime.",
+  "type": "object",
+  "required": [
+    "primary_lane",
+    "confidence",
+    "reasoning",
+    "signals",
+    "is_internal"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "primary_lane": {
+      "type": "string",
+      "enum": [
+        "New Orders / Pending Shipments",
+        "Shipping CS",
+        "Parcel / Small Package",
+        "Install / Service / Warranty",
+        "Sales CS",
+        "Finance / ACH / Owner Approval",
+        "Product Content / Ecommerce",
+        "Escalate / Needs Human Review"
+      ]
+    },
+    "secondary_lane": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "enum": [
+            "New Orders / Pending Shipments",
+            "Shipping CS",
+            "Parcel / Small Package",
+            "Install / Service / Warranty",
+            "Sales CS",
+            "Finance / ACH / Owner Approval",
+            "Product Content / Ecommerce",
+            "Escalate / Needs Human Review"
+          ]
+        }
+      ]
+    },
+    "confidence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "reasoning": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 500
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "maxItems": 10
+    },
+    "is_internal": {
+      "type": "boolean"
+    }
+  }
+}

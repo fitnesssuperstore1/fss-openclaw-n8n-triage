@@ -1,0 +1,15 @@
+{
+  "case_id": 10,
+  "from": "anita.flores@example.com",
+  "to": "shipping.cs@frenchfitness.com",
+  "subject": "Freight tracking - who schedules my delivery?",
+  "body": "I'm trying to track my freight shipment of the half rack and figure out delivery. An old FAQ/PDF I found said I have to call the carrier and schedule it all myself. Is that right, or do you handle it? Tracking PRO 553-9087.",
+  "shopify": {
+    "order": "FS-10133",
+    "fulfillment_status": "fulfilled",
+    "tracking": "PRO 553-9087 (LTL freight)",
+    "item": "Half Rack"
+  },
+  "expected_lane": "Shipping CS",
+  "note": "Archived ARCH-01 says self-service; Active SOP-02 says we coordinate. Must follow SOP-02 and FLAG the conflict."
+}

@@ -1,0 +1,17 @@
+{
+  "case_id": "internal_05",
+  "from": "lead.ops@frenchfitness.com",
+  "to": "content@frenchfitness.com",
+  "subject": "[internal] Q2 product specs sheet needs an update",
+  "body": "Hey content team,\n\nThe Q2 product specs sheet on Drive needs an update — three of the items have wrong dimensions:\n\n- Pro Rack X3: listed as 86\" tall but actual is 90\".\n- Adjustable Bench V2: weight cap listed as 600lb but spec is 650lb.\n- Heavy Bag Stand: footprint listed wrong.\n\nCan someone on the content team grab this? Customers are calling sales with confused questions.\n\nThanks,\nDana (lead ops)",
+  "received_at": "2026-06-10T10:15:00Z",
+  "expected_outcome": {
+    "in_scope": true,
+    "scope_label": "internal",
+    "primary_lane": "Product Content / Ecommerce",
+    "action": "route",
+    "approver_role": null,
+    "route_to": "Product Lead",
+    "notes": "Internal cleanup task — Product Content / Ecommerce lane, REF-01 is Reference-only, so chain returns action=route with route_to=Product Lead (no customer-facing draft). Same pattern as the existing case 7 (Jordan Kim) but originating from leadership/ops instead of warehouse."
+  }
+}

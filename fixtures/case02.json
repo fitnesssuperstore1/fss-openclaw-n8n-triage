@@ -1,0 +1,15 @@
+{
+  "case_id": 2,
+  "from": "marcus.lee@example.com",
+  "to": "shipping.cs@frenchfitness.com",
+  "subject": "Missed the freight delivery call - need to reschedule",
+  "body": "The freight company called about delivering my power rack but I missed it and now I can't reach them. Tracking shows it's at the local terminal (PRO 776-4412). Can you help me get it delivered this week? I'm available Tue/Thu afternoons.",
+  "shopify": {
+    "order": "FS-10199",
+    "financial_status": "paid",
+    "fulfillment_status": "fulfilled",
+    "tracking": "PRO 776-4412 (LTL freight)",
+    "item": "Power Rack"
+  },
+  "expected_lane": "Shipping CS"
+}

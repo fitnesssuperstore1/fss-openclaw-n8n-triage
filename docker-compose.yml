@@ -1,0 +1,137 @@
+# Fitness Superstore — full sandbox stack, one compose file.
+#
+#   traefik      reverse proxy + Let's Encrypt (n8n + OpenClaw subdomains)
+#   openclaw     the agent gateway; SKILLS BIND-MOUNTED from ./skills
+#   n8n-import   one-shot: imports ./n8n/workflows into n8n, then exits
+#   n8n          workflow engine (waits for n8n-import to finish)
+#   bridge       triage HTTP bridge (triage-server.py) on 127.0.0.1:8088
+#
+# All credentials come from .env (copy .env.example -> .env). No secrets in
+# this file or in the repo.
+#
+# Folder layout this compose expects (all live next to this file):
+#   ./skills/<skill_name>/SKILL.md    <- bind-mounted into openclaw (live edit)
+#   ./n8n/workflows/*.json            <- seeded into n8n by n8n-import
+#   ./openclaw/Dockerfile, entrypoint.sh
+#   ./bin, ./schemas, ./sops, ./config, ./fixtures  <- mounted into bridge
+#
+# CUTOVER NOTE: the current sandbox runs OpenClaw host-native (systemd user
+# service on :18789) and n8n/traefik as standalone docker containers. Those
+# keep running until a deliberate switch-over: stop the old ones first, then
+# `docker compose up -d` — otherwise ports 80/443/8080/8088/18789 collide.
+# Intentionally NO container_name fields below so this stack can never clash
+# by name with the legacy containers.
+
+services:
+
+  # --------------------------------------------------------------------------
+  traefik:
+    image: traefik:v3.2
+    restart: unless-stopped
+    network_mode: host
+    # Static config, dynamic routes, and the EXISTING Let's Encrypt certs all
+    # come from ./infra/traefik — same files the pre-compose deployment used,
+    # so HTTPS carries over with zero re-issuance (Let's Encrypt rate-limits
+    # issuance to ~5/domain/week; reusing acme.json avoids burning those).
+    volumes:
+      - ./infra/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./infra/traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./infra/traefik/letsencrypt:/letsencrypt
+
+  # --------------------------------------------------------------------------
+  # OpenClaw gateway. Skills folder bind-mounted straight into the workspace:
+  # edit ./skills/<name>/SKILL.md on the host -> live in the container.
+  # State (config, sessions, auth) persists on the openclaw_data volume.
+  # --------------------------------------------------------------------------
+  openclaw:
+    build: ./openclaw
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENCLAW_GATEWAY_PORT=${OPENCLAW_GATEWAY_PORT:-18789}
+    volumes:
+      - openclaw_data:/root/.openclaw
+      - ./skills:/root/.openclaw/workspace/skills
+
+  # --------------------------------------------------------------------------
+  # One-shot workflow seeder (pattern: n8n self-hosted-ai-starter-kit).
+  # Imports every JSON in ./n8n/workflows once, then exits. Skips when the
+  # instance already has workflows, so restarts never duplicate or overwrite.
+  # Workflows only — credentials are connected by hand in the n8n UI.
+  # --------------------------------------------------------------------------
+  n8n-import:
+    image: docker.n8n.io/n8nio/n8n:latest
+    entrypoint: /bin/sh
+    command:
+      - "-c"
+      - "if [ -z \"$(n8n list:workflow --onlyId 2>/dev/null)\" ]; then n8n import:workflow --separate --input=/workflows; else echo 'workflows exist, skipping import'; fi"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/workflows:ro
+
+  # --------------------------------------------------------------------------
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      n8n-import:
+        condition: service_completed_successfully
+    environment:
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=${N8N_PORT:-8080}
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - GENERIC_TIMEZONE=${TIMEZONE:-UTC}
+      - N8N_SECURE_COOKIE=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+  # --------------------------------------------------------------------------
+  # Triage bridge: n8n POSTs {email, sops} to 127.0.0.1:8088/triage; the
+  # bridge runs the 5-skill chain (each skill = `openclaw agent --local`)
+  # and creates the Monday card. Built from the SAME image as the openclaw
+  # service so the CLI is present and version-identical; only the entrypoint
+  # differs. The project is mounted at /root/Arvin — the path the bin/
+  # scripts expect (ROOT=$HOME/Arvin).
+  # --------------------------------------------------------------------------
+  bridge:
+    build: ./openclaw
+    entrypoint: ["/bridge-entrypoint.sh"]
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENCLAW_MODEL=${OPENCLAW_MODEL:-openai/gpt-5.5}
+      - OPENCLAW_BIN=/usr/local/bin/openclaw
+      - MONDAY_API_TOKEN=${MONDAY_API_TOKEN}
+      - MONDAY_BOARD_ID=${MONDAY_BOARD_ID}
+      - MONDAY_APPROVAL_COL_ID=${MONDAY_APPROVAL_COL_ID}
+      - MONDAY_GMAIL_MSGID_COL_ID=${MONDAY_GMAIL_MSGID_COL_ID}
+      - GMAIL_USER=${GMAIL_USER}
+    volumes:
+      - ./bin:/root/Arvin/bin:ro
+      - ./schemas:/root/Arvin/schemas:ro
+      - ./sops:/root/Arvin/sops:ro
+      - ./fixtures:/root/Arvin/fixtures:ro
+      - ./config:/root/Arvin/config:ro
+      - ./scripts:/root/Arvin/scripts:ro
+      - ./skills:/root/.openclaw/workspace/skills:ro
+      - ${HOME}/secrets:/root/secrets:ro
+      - bridge_claw_state:/root/.openclaw/agents
+      - bridge_out:/root/Arvin/out
+
+volumes:
+  openclaw_data:
+    # OpenClaw state: gateway config, sessions, auth profiles. The skills
+    # bind from ./skills sits nested inside this mount.
+  n8n_data:
+    # n8n workflows + credentials + executions. Wiping this loses every
+    # credential connected in the UI. Treat as precious.
+  bridge_out:
+    # Per-request decision JSON archive. Safe to wipe.
+  bridge_claw_state:
+    # The bridge's own openclaw agent state (sessions + auth profile written
+    # by bridge-entrypoint.sh). Separate from the gateway's openclaw_data so
+    # the two containers never fight over session files.
