@@ -14,10 +14,14 @@ GET  /health   -> {"ok":true}
 Binds 127.0.0.1:8088 (loopback only). A host-networked n8n container reaches it
 at http://127.0.0.1:8088/triage. Not exposed externally.
 """
-import json, os, subprocess, time, http.server, socketserver
+import json, os, subprocess, time, http.server, socketserver, tempfile
 
 ROOT = os.path.expanduser("~/Arvin")
 HOST, PORT = "127.0.0.1", 8088
+# B5: caps on untrusted input — reject oversized requests and truncate the
+# email body before it reaches the model.
+MAX_REQUEST_BYTES = 512 * 1024     # 512 KB whole-request ceiling
+MAX_EMAIL_BODY_CHARS = 50_000      # per-field email-body cap
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def _send(self, code, obj):
@@ -39,12 +43,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path.rstrip("/") != "/triage":
             return self._send(404, {"error": "not found"})
+        # B5: reject oversized requests before reading the body.
         try:
             n = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            return self._send(400, {"error": "bad content-length"})
+        if n > MAX_REQUEST_BYTES:
+            return self._send(413, {"error": "payload too large"})
+        try:
             raw = self.rfile.read(n).decode("utf-8", "replace") if n else "{}"
             payload = json.loads(raw) if raw.strip() else {}
         except Exception as e:
-            return self._send(400, {"error": "bad json", "detail": str(e)})
+            print("[bridge] bad json: %s" % e)       # detail stays server-side
+            return self._send(400, {"error": "bad json"})
 
         # Accept two shapes:
         #   { email: {...}, sops: [...] }   <-- new (Drive-fed)
@@ -56,31 +67,51 @@ class Handler(http.server.BaseHTTPRequestHandler):
         else:
             email = payload
 
-        name = "req-%d" % int(time.time() * 1000)
-        email_path = "/tmp/%s.json" % name
-        with open(email_path, "w") as f:
-            json.dump(email, f)
+        # B5: cap the untrusted email body before it reaches the model.
+        if isinstance(email, dict) and isinstance(email.get("body"), str):
+            if len(email["body"]) > MAX_EMAIL_BODY_CHARS:
+                email["body"] = email["body"][:MAX_EMAIL_BODY_CHARS] + "\n[...truncated]"
 
-        args = ["bash", os.path.join(ROOT, "bin", "triage-pipeline.sh"), email_path]
-        if sops is not None:
-            sops_path = "/tmp/%s.sops.json" % name
-            with open(sops_path, "w") as f:
-                json.dump(sops, f)
-            args.append(sops_path)
+        # B6: unique, mode-0600 temp files, always cleaned up in finally.
+        tmp_paths = []
+        try:
+            fd, email_path = tempfile.mkstemp(prefix="triage-", suffix=".json")
+            tmp_paths.append(email_path)
+            with os.fdopen(fd, "w") as f:
+                json.dump(email, f)
 
-        proc = subprocess.run(args, capture_output=True, text=True, timeout=240)
-        dec_path = os.path.join(ROOT, "out", "%s.decision.json" % name)
-        decision = None
-        if os.path.exists(dec_path):
-            try:
-                decision = json.load(open(dec_path))
-            except Exception:
-                decision = None
-        if decision is None:
-            return self._send(502, {"error": "triage failed",
-                                    "stdout": proc.stdout[-4000:],
-                                    "stderr": proc.stderr[-2000:]})
-        self._send(200, {"decision": decision, "pipeline_log": proc.stdout[-4000:]})
+            args = ["bash", os.path.join(ROOT, "bin", "triage-pipeline.sh"), email_path]
+            if sops is not None:
+                fd2, sops_path = tempfile.mkstemp(prefix="triage-", suffix=".sops.json")
+                tmp_paths.append(sops_path)
+                with os.fdopen(fd2, "w") as f:
+                    json.dump(sops, f)
+                args.append(sops_path)
+
+            # pipeline writes out/<name>.decision.json where name = email basename
+            name = os.path.basename(email_path).removesuffix(".json")
+            proc = subprocess.run(args, capture_output=True, text=True, timeout=240)
+            dec_path = os.path.join(ROOT, "out", "%s.decision.json" % name)
+            decision = None
+            if os.path.exists(dec_path):
+                try:
+                    decision = json.load(open(dec_path))
+                except Exception:
+                    decision = None
+            if decision is None:
+                # B6: never return stdout/stderr/pipeline logs to the caller;
+                # log server-side only.
+                print("[bridge] triage failed for %s; stderr tail: %s"
+                      % (name, proc.stderr[-500:]))
+                return self._send(502, {"error": "triage failed"})
+            # B6: return only the routing decision n8n needs — no pipeline_log.
+            self._send(200, {"decision": decision})
+        finally:
+            for p in tmp_paths:
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
 
 class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
