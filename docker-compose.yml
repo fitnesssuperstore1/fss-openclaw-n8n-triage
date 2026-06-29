@@ -68,7 +68,7 @@ services:
     entrypoint: /bin/sh
     command:
       - "-c"
-      - "if [ -z \"$(n8n list:workflow --onlyId 2>/dev/null)\" ]; then n8n import:workflow --separate --input=/workflows; else echo 'workflows exist, skipping import'; fi"
+      - "if [ ! -f /home/node/.n8n/.workflows-imported ]; then n8n import:workflow --separate --input=/workflows && touch /home/node/.n8n/.workflows-imported; else echo 'workflows already imported, skipping'; fi"
     environment:
       # B9: must match the n8n service key — n8n-import initializes the shared volume.
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
