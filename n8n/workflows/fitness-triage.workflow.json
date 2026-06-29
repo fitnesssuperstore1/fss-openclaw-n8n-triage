@@ -1,1 +1,276 @@
-{"updatedAt":"2026-06-16T09:59:01.333Z","createdAt":"2026-06-10T08:44:00.965Z","id":"USIjadJZrR72X0OJ","name":"Fitness Superstore — Inbound Triage","description":null,"active":false,"isArchived":false,"nodes":[{"parameters":{"jsCode":"const it = $input.first().json;\nconst headers = it.headers || {};\nconst payload = {\n  from: it.from || headers.from || '',\n  to: it.to?.value?.[0]?.address || it.to?.text || it.to || headers.to || '',\n  subject: it.subject || headers.subject || '',\n  body: it.textPlain || it.text || it.textHtml || it.snippet || '',\n  threadId: it.threadId || '',\n  messageId: it.messageId || (headers && headers['message-id']) || ''\n};\nreturn [{ json: { payload } }];"},"id":"f2376283-e3cc-4d9a-8971-1356fa52b777","name":"Normalize email","type":"n8n-nodes-base.code","typeVersion":2,"position":[-2720,-368]},{"parameters":{"method":"POST","url":"http://127.0.0.1:8088/triage","sendBody":true,"specifyBody":"json","jsonBody":"={{ JSON.stringify($json) }}","options":{"timeout":240000}},"id":"3fcb9f9f-1ca4-4770-8af2-81d5fb246e70","name":"OpenClaw triage (HTTP bridge)","type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[-1808,-368],"notes":"POSTs the email to the host bridge (127.0.0.1:8088) which runs the fitness-triage OpenClaw skill, creates the Gmail DRAFT (IMAP append, never sends) and the Monday card, and returns the routing-decision JSON. Reachable because the container uses --network host."},{"parameters":{"jsCode":"// Surface the routing decision for visibility / downstream use.\nconst d = $('OpenClaw triage (HTTP bridge)').first().json.decision || {};\nreturn [{ json: {\n  primary_lane: d.primary_lane,\n  action: d.action,\n  approval: d.approval_required ? d.approver_role : 'none',\n  controlling_sop: d.controlling_sop,\n  sop_conflict: d.sop_conflict,\n  confidence: d.confidence,\n  draft_created: !!d.draft,\n  decision: d\n}}];"},"id":"a614a23f-5341-4f4a-8a17-130fef03ed8a","name":"Surface decision","type":"n8n-nodes-base.code","typeVersion":2,"position":[576,-704],"disabled":true},{"parameters":{"pollTimes":{"item":[{"mode":"everyMinute"}]},"simple":false,"filters":{"readStatus":"unread"},"options":{}},"type":"n8n-nodes-base.gmailTrigger","typeVersion":1.4,"position":[-2944,-368],"id":"6b12b084-8de7-4ae5-970d-5bd9e187675b","name":"Gmail Trigger","credentials":{"gmailOAuth2":{"id":"np9bdfleWVRNhyXu","name":"Gmail account"}}},{"parameters":{"resource":"fileFolder","searchMethod":"query","queryString":"=mimeType='text/markdown' and (name contains 'SOP-' or name contains 'REF-' or name contains 'ARCH-') and trashed=false","filter":{},"options":{}},"type":"n8n-nodes-base.googleDrive","typeVersion":3,"position":[-2496,-368],"id":"d3238b55-ed45-4d70-add0-c1b47b61be52","name":"Search files and folders","credentials":{"googleDriveOAuth2Api":{"id":"45kLF5gLaE3XHSe3","name":"Google Drive account"}}},{"parameters":{"operation":"download","fileId":{"__rl":true,"value":"={{ $json.id }}","mode":"id"},"options":{}},"type":"n8n-nodes-base.googleDrive","typeVersion":3,"position":[-2272,-368],"id":"e64619c0-0a2e-46e5-91cd-d07159ceb4c8","name":"Download file","credentials":{"googleDriveOAuth2Api":{"id":"45kLF5gLaE3XHSe3","name":"Google Drive account"}}},{"parameters":{"jsCode":"const items = $input.all();\nconst sops = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  const buf = await this.helpers.getBinaryDataBuffer(i, 'data');\n  const content = buf.toString('utf-8');\n\n  const name = item.json.name || '';\n  let status = 'Reference';\n  if (name.startsWith('SOP-')) status = 'Active';\n  else if (name.startsWith('ARCH-')) status = 'Archived';\n\n  // Extract the SOP-/REF-/ARCH-NN id from the filename — the Drive file ID\n  // is not what the select_sop schema expects.\n  const m = name.match(/^((?:SOP|REF|ARCH)-\\d{2})/);\n  const sopId = m ? m[1] : null;\n\n  sops.push({ id: sopId, drive_id: item.json.id, name, status, content });\n}\n\nconst email = $('Normalize email').first().json.payload;\nreturn [{ json: { email, sops } }];"},"type":"n8n-nodes-base.code","typeVersion":2,"position":[-2048,-368],"id":"2c945249-71ff-4be0-b5c6-c1db55c2ff3c","name":"Code in JavaScript"},{"parameters":{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict","version":3},"conditions":[{"id":"6a502631-b474-410c-a72f-5efd77cebe0a","leftValue":"={{ $json.decision.action }}","rightValue":"draft","operator":{"type":"string","operation":"equals","name":"filter.operator.equals"}}],"combinator":"and"},"options":{}},"type":"n8n-nodes-base.if","typeVersion":2.3,"position":[-1600,-368],"id":"e75a28b2-2511-40ce-9fc3-ff2be1c919de","name":"If"},{"parameters":{"resource":"draft","subject":"={{ $json.decision.draft.subject }}","message":"={{ $json.decision.draft.body }}","options":{"threadId":"={{ $('Gmail Trigger').item.json.threadId }}","sendTo":"={{ $json.decision.draft.to?.value?.[0]?.address || $json.decision.draft.to?.text || $json.decision.draft.to }}"}},"type":"n8n-nodes-base.gmail","typeVersion":2.2,"position":[-1376,-160],"id":"06029c70-6255-466c-bec5-326b62c70e14","name":"Create a draft","webhookId":"74eb309a-1759-4f38-b4b8-27dc45e5520f","credentials":{"gmailOAuth2":{"id":"np9bdfleWVRNhyXu","name":"Gmail account"}}},{"parameters":{"operation":"sendAndWait","select":"channel","channelId":{"__rl":true,"value":"C0B74AV5TUY","mode":"list","cachedResultName":"fitness"},"message":"=Lane: {{ $json.decision.primary_lane }}\nSOP: {{ $json.decision.controlling_sop_id || $json.decision.controlling_sop?.id || '(unknown)' }}\nReason: {{ $json.decision.escalation_reason || $json.decision.reasoning || '(no reason given)' }}\n{{ $json.decision.draft?.body ? '\\n\\nProposed holding draft:\\n' + $json.decision.draft.body : '' }}{{ (($json.decision.draft?.uncommitted_items || $json.decision.uncommitted_items || []).length) ? '\\n\\nUncommitted items (need decision):\\n' + ($json.decision.draft?.uncommitted_items || $json.decision.uncommitted_items).map(i => '• ' + i).join('\\n') : '' }}","approvalOptions":{"values":{"approvalType":"double"}},"options":{}},"type":"n8n-nodes-base.slack","typeVersion":2.4,"position":[16,-720],"id":"2f0d9460-7798-43df-8d2a-b94face61607","name":"Send message and wait for response","webhookId":"a4b28f95-1a49-4d0e-be9a-7d7b9f0b660e","credentials":{"slackApi":{"id":"Bu6PLe07hywEKgpT","name":"Slack account"}},"disabled":true},{"parameters":{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict","version":3},"conditions":[{"id":"933b8692-3f64-4425-801e-6ac579dfe711","leftValue":"={{ $json.data.approved }}","rightValue":"true","operator":{"type":"boolean","operation":"true","singleValue":true}},{"id":"521a96ce-82cc-42d8-9851-d5464951af9a","leftValue":"={{!! $('If').item.json.decision.draft }}","rightValue":"null","operator":{"type":"boolean","operation":"true","singleValue":true}}],"combinator":"and"},"options":{}},"type":"n8n-nodes-base.if","typeVersion":2.3,"position":[320,-704],"id":"f1c12357-3cc3-44a6-b030-297c195761b9","name":"If1","disabled":true},{"parameters":{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict","version":3},"conditions":[{"id":"37261d1f-9c21-47db-bfb9-46d12ee01dca","leftValue":"={{ $json.decision.action}}","rightValue":"route","operator":{"type":"string","operation":"equals","name":"filter.operator.equals"}}],"combinator":"and"},"options":{}},"type":"n8n-nodes-base.if","typeVersion":2.3,"position":[-368,-704],"id":"d32de30c-9f31-410b-aeb3-a33c0c008d5e","name":"If route","disabled":true},{"parameters":{"select":"channel","channelId":{"__rl":true,"value":"C0B74AV5TUY","mode":"list","cachedResultName":"fitness"},"text":"=:inbox_tray: New internal task — {{ $json.decision.primary_lane }}\nAssigned to: {{ $json.decision.route_to }}\nSOP: {{ $json.decision.controlling_sop?.id || '(none)' }}\nFrom: From: {{ $('Normalize email').first().json.payload.from?.value?.[0]?.address || $('Normalize email').first().json.payload.from?.text || $('Normalize email').first().json.payload.from }}\nSubject: {{ $('Normalize email').first().json.payload.subject }}\n\n{{ $('Normalize email').first().json.payload.body }}","otherOptions":{"includeLinkToWorkflow":false}},"type":"n8n-nodes-base.slack","typeVersion":2.4,"position":[-160,-352],"id":"838f8913-face-41ea-9e13-9f229ebd9d4d","name":"Send message","webhookId":"a4b28f95-1a49-4d0e-be9a-7d7b9f0b660e","credentials":{"slackApi":{"id":"Bu6PLe07hywEKgpT","name":"Slack account"}},"disabled":true},{"parameters":{"resource":"draft","subject":"={{ $('If').item.json.decision.draft.subject }}","message":"={{ $('If').item.json.decision.draft.body }}","options":{"threadId":"={{ $('Gmail Trigger').item.json.threadId }}","sendTo":"={{ $json.decision.draft.to?.value?.[0]?.address || $json.decision.draft.to?.text || $json.decision.draft.to }}"}},"type":"n8n-nodes-base.gmail","typeVersion":2.2,"position":[432,-368],"id":"715afd6b-d9fd-4429-9a2c-0587a3d3ac31","name":"Create approved draft (manual send required)","webhookId":"74eb309a-1759-4f38-b4b8-27dc45e5520f","credentials":{"gmailOAuth2":{"id":"np9bdfleWVRNhyXu","name":"Gmail account"}},"disabled":true}],"connections":{"Normalize email":{"main":[[{"node":"Search files and folders","type":"main","index":0}]]},"OpenClaw triage (HTTP bridge)":{"main":[[{"node":"If","type":"main","index":0}]]},"Gmail Trigger":{"main":[[{"node":"Normalize email","type":"main","index":0}]]},"Search files and folders":{"main":[[{"node":"Download file","type":"main","index":0}]]},"Download file":{"main":[[{"node":"Code in JavaScript","type":"main","index":0}]]},"Code in JavaScript":{"main":[[{"node":"OpenClaw triage (HTTP bridge)","type":"main","index":0}]]},"If":{"main":[[{"node":"Create a draft","type":"main","index":0}],[]]},"Send message and wait for response":{"main":[[{"node":"If1","type":"main","index":0}]]},"If1":{"main":[[{"node":"Create approved draft (manual send required)","type":"main","index":0}],[{"node":"Surface decision","type":"main","index":0}]]},"If route":{"main":[[{"node":"Send message","type":"main","index":0}],[{"node":"Send message and wait for response","type":"main","index":0}]]}},"settings":{"executionOrder":"v1","binaryMode":"separate"},"staticData":{"node:Gmail Trigger":{"Gmail Trigger":{"lastTimeChecked":1781515821,"possibleDuplicates":["19eca9e58cb5fb44"]}}},"meta":null,"pinData":{},"versionId":"b53dd1cb-af7b-4628-b624-200947b9f9d5","activeVersionId":null,"versionCounter":34,"triggerCount":1,"tags":[],"shared":[{"updatedAt":"2026-06-10T08:44:00.969Z","createdAt":"2026-06-10T08:44:00.969Z","role":"workflow:owner","workflowId":"USIjadJZrR72X0OJ","projectId":"XZx68wOowp1y104m","project":{"updatedAt":"2026-05-26T00:22:36.871Z","createdAt":"2026-05-26T00:20:05.708Z","id":"XZx68wOowp1y104m","name":"Yonatan Tesfaye <yonatantesfaye30@gmail.com>","type":"personal","icon":null,"description":null,"creatorId":"d709ba43-0dbc-4569-84d1-ed4222d44c7b"}}],"versionMetadata":{"name":null,"description":null}}
+{
+  "name": "Fitness Superstore — Inbound Triage",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const it = $input.first().json;\nconst headers = it.headers || {};\nconst payload = {\n  from: it.from || headers.from || '',\n  to: it.to?.value?.[0]?.address || it.to?.text || it.to || headers.to || '',\n  subject: it.subject || headers.subject || '',\n  body: it.textPlain || it.text || it.textHtml || it.snippet || '',\n  threadId: it.threadId || '',\n  messageId: it.messageId || (headers && headers['message-id']) || ''\n};\nreturn [{ json: { payload } }];"
+      },
+      "id": "f2376283-e3cc-4d9a-8971-1356fa52b777",
+      "name": "Normalize email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2720,
+        -368
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8088/triage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 240000
+        }
+      },
+      "id": "3fcb9f9f-1ca4-4770-8af2-81d5fb246e70",
+      "name": "OpenClaw triage (HTTP bridge)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1808,
+        -368
+      ],
+      "notes": "POSTs the email to the host bridge (127.0.0.1:8088) which runs the fitness-triage OpenClaw skill, creates the Gmail DRAFT (IMAP append, never sends) and the Monday card, and returns the routing-decision JSON. Reachable because the container uses --network host."
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -2944,
+        -368
+      ],
+      "id": "6b12b084-8de7-4ae5-970d-5bd9e187675b",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "np9bdfleWVRNhyXu",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "=mimeType='text/markdown' and (name contains 'SOP-' or name contains 'REF-' or name contains 'ARCH-') and trashed=false",
+        "filter": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -2496,
+        -368
+      ],
+      "id": "d3238b55-ed45-4d70-add0-c1b47b61be52",
+      "name": "Search files and folders",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "45kLF5gLaE3XHSe3",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -2272,
+        -368
+      ],
+      "id": "e64619c0-0a2e-46e5-91cd-d07159ceb4c8",
+      "name": "Download file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "45kLF5gLaE3XHSe3",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst sops = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  const buf = await this.helpers.getBinaryDataBuffer(i, 'data');\n  const content = buf.toString('utf-8');\n\n  const name = item.json.name || '';\n  let status = 'Reference';\n  if (name.startsWith('SOP-')) status = 'Active';\n  else if (name.startsWith('ARCH-')) status = 'Archived';\n\n  // Extract the SOP-/REF-/ARCH-NN id from the filename — the Drive file ID\n  // is not what the select_sop schema expects.\n  const m = name.match(/^((?:SOP|REF|ARCH)-\\d{2})/);\n  const sopId = m ? m[1] : null;\n\n  sops.push({ id: sopId, drive_id: item.json.id, name, status, content });\n}\n\nconst email = $('Normalize email').first().json.payload;\nreturn [{ json: { email, sops } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2048,
+        -368
+      ],
+      "id": "2c945249-71ff-4be0-b5c6-c1db55c2ff3c",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6a502631-b474-410c-a72f-5efd77cebe0a",
+              "leftValue": "={{ $json.decision.action }}",
+              "rightValue": "draft",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1600,
+        -368
+      ],
+      "id": "e75a28b2-2511-40ce-9fc3-ff2be1c919de",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.decision.draft.subject }}",
+        "message": "={{ $json.decision.draft.body }}",
+        "options": {
+          "threadId": "={{ $('Gmail Trigger').item.json.threadId }}",
+          "sendTo": "={{ $json.decision.draft.to?.value?.[0]?.address || $json.decision.draft.to?.text || $json.decision.draft.to }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -1376,
+        -160
+      ],
+      "id": "06029c70-6255-466c-bec5-326b62c70e14",
+      "name": "Create a draft",
+      "webhookId": "74eb309a-1759-4f38-b4b8-27dc45e5520f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "np9bdfleWVRNhyXu",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize email": {
+      "main": [
+        [
+          {
+            "node": "Search files and folders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "OpenClaw triage (HTTP bridge)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenClaw triage (HTTP bridge)": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Create a draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "pinData": {},
+  "meta": null
+}
