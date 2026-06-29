@@ -26,7 +26,7 @@ services:
 
   # --------------------------------------------------------------------------
   traefik:
-    image: traefik:v3.2
+    image: traefik:v3.2.5
     restart: unless-stopped
     network_mode: host
     # Static config, dynamic routes, and the EXISTING Let's Encrypt certs all
@@ -50,6 +50,9 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENCLAW_GATEWAY_PORT=${OPENCLAW_GATEWAY_PORT:-18789}
+      # B9: gateway auth token (entrypoint enables --auth token when set); the
+      # gateway also binds loopback, so 18789 is not publicly reachable.
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
     volumes:
       - openclaw_data:/root/.openclaw
       - ./skills:/root/.openclaw/workspace/skills
@@ -61,18 +64,21 @@ services:
   # Workflows only — credentials are connected by hand in the n8n UI.
   # --------------------------------------------------------------------------
   n8n-import:
-    image: docker.n8n.io/n8nio/n8n:latest
+    image: docker.n8n.io/n8nio/n8n:2.21.7
     entrypoint: /bin/sh
     command:
       - "-c"
       - "if [ -z \"$(n8n list:workflow --onlyId 2>/dev/null)\" ]; then n8n import:workflow --separate --input=/workflows; else echo 'workflows exist, skipping import'; fi"
+    environment:
+      # B9: must match the n8n service key — n8n-import initializes the shared volume.
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
     volumes:
       - n8n_data:/home/node/.n8n
       - ./n8n/workflows:/workflows:ro
 
   # --------------------------------------------------------------------------
   n8n:
-    image: docker.n8n.io/n8nio/n8n:latest
+    image: docker.n8n.io/n8nio/n8n:2.21.7
     restart: unless-stopped
     network_mode: host
     depends_on:
@@ -89,6 +95,12 @@ services:
       - SOP_ACTIVE_FOLDER_ID=${SOP_ACTIVE_FOLDER_ID}
       - SOP_ARCHIVED_FOLDER_ID=${SOP_ARCHIVED_FOLDER_ID}
       - SOP_REFERENCE_FOLDER_ID=${SOP_REFERENCE_FOLDER_ID}
+      # B9: persistent encryption key — without it n8n regenerates one per
+      # restart and every stored credential breaks. Set a 32+ char random value.
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      # B9: listen on loopback only; Traefik (same host) proxies in, so 8080 is
+      # never publicly reachable.
+      - N8N_LISTEN_ADDRESS=127.0.0.1
     volumes:
       - n8n_data:/home/node/.n8n
 

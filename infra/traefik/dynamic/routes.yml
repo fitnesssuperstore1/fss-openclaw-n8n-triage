@@ -4,14 +4,14 @@
 http:
   routers:
     n8n:
-      rule: "Host(`n8n.fitness.nova4.ai`)"
+      rule: "Host(`n8n.example.com`)"        # B9: replace with your company domain
       entryPoints: ["websecure"]
       service: n8n
       tls:
         certResolver: letsencrypt
 
     openclaw:
-      rule: "Host(`openclaw.fitness.nova4.ai`)"
+      rule: "Host(`openclaw.example.com`)"   # B9: replace with your company domain
       entryPoints: ["websecure"]
       service: openclaw
       tls:

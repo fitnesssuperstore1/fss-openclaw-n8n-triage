@@ -1,7 +1,9 @@
 ## Traefik v3 — static configuration
-## Fronts n8n.fitness.nova4.ai and openclaw.fitness.nova4.ai with auto-HTTPS
-## via Let's Encrypt HTTP-01 challenge. Runs in host network mode so it can
-## reach n8n on 127.0.0.1:8080 and OpenClaw on 127.0.0.1:18789 directly.
+## Fronts the n8n and OpenClaw subdomains with auto-HTTPS via Let's Encrypt
+## HTTP-01 challenge. Runs in host network mode so it can reach n8n on
+## 127.0.0.1:8080 and OpenClaw on 127.0.0.1:18789 directly.
+## B9: replace example.com (here + in dynamic/routes.yml) with your company
+## domain, and set the ACME email below to a company-controlled address.
 
 global:
   checkNewVersion: false
@@ -30,7 +32,7 @@ providers:
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: ops@fitness.nova4.ai
+      email: admin@example.com   # B9: set to a company-controlled address
       storage: /letsencrypt/acme.json
       httpChallenge:
         entryPoint: web
