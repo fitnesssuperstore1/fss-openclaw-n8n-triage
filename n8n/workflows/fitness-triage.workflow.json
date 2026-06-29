@@ -70,7 +70,7 @@
       "parameters": {
         "resource": "fileFolder",
         "searchMethod": "query",
-        "queryString": "=mimeType='text/markdown' and (name contains 'SOP-' or name contains 'REF-' or name contains 'ARCH-') and trashed=false",
+        "queryString": "=mimeType='text/markdown' and ('{{ $env.SOP_ACTIVE_FOLDER_ID }}' in parents or '{{ $env.SOP_ARCHIVED_FOLDER_ID }}' in parents or '{{ $env.SOP_REFERENCE_FOLDER_ID }}' in parents) and trashed=false",
         "filter": {},
         "options": {}
       },

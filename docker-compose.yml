@@ -85,6 +85,10 @@ services:
       - WEBHOOK_URL=${N8N_WEBHOOK_URL}
       - GENERIC_TIMEZONE=${TIMEZONE:-UTC}
       - N8N_SECURE_COOKIE=true
+      # B10: approved SOP folder ids — the Drive search node scopes to these only
+      - SOP_ACTIVE_FOLDER_ID=${SOP_ACTIVE_FOLDER_ID}
+      - SOP_ARCHIVED_FOLDER_ID=${SOP_ARCHIVED_FOLDER_ID}
+      - SOP_REFERENCE_FOLDER_ID=${SOP_REFERENCE_FOLDER_ID}
     volumes:
       - n8n_data:/home/node/.n8n
 
