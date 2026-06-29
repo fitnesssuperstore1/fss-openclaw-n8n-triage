@@ -60,8 +60,8 @@
       "name": "Gmail Trigger",
       "credentials": {
         "gmailOAuth2": {
-          "id": "np9bdfleWVRNhyXu",
-          "name": "Gmail account"
+          "id": "",
+          "name": "REPLACE_ME"
         }
       }
     },
@@ -83,8 +83,8 @@
       "name": "Search files and folders",
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "45kLF5gLaE3XHSe3",
-          "name": "Google Drive account"
+          "id": "",
+          "name": "REPLACE_ME"
         }
       }
     },
@@ -108,8 +108,8 @@
       "name": "Download file",
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "45kLF5gLaE3XHSe3",
-          "name": "Google Drive account"
+          "id": "",
+          "name": "REPLACE_ME"
         }
       }
     },
@@ -181,8 +181,8 @@
       "webhookId": "74eb309a-1759-4f38-b4b8-27dc45e5520f",
       "credentials": {
         "gmailOAuth2": {
-          "id": "np9bdfleWVRNhyXu",
-          "name": "Gmail account"
+          "id": "",
+          "name": "REPLACE_ME"
         }
       }
     }
@@ -271,6 +271,5 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "pinData": {},
-  "meta": null
+  "meta": {}
 }
