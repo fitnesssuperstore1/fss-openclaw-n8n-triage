@@ -1,0 +1,11 @@
+{
+  "_comment": "Template — copy to config/monday-groups.json and replace each value with the real Monday group_id for that lane on your board. Get the ids via: query { boards(ids: <BOARD_ID>) { groups { id title } } }",
+  "New Orders / Pending Shipments": "group_replace_me",
+  "Shipping CS": "group_replace_me",
+  "Parcel / Small Package": "group_replace_me",
+  "Install / Service / Warranty": "group_replace_me",
+  "Sales CS": "group_replace_me",
+  "Finance / ACH / Owner Approval": "group_replace_me",
+  "Product Content / Ecommerce": "group_replace_me",
+  "Escalate / Needs Human Review": "group_replace_me"
+}
