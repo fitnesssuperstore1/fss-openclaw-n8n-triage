@@ -66,7 +66,13 @@ MODELS = {
     "draft_response": os.environ.get("OPENCLAW_MODEL_DRAFT",    DEFAULT_MODEL),
     "audit_check":    os.environ.get("OPENCLAW_MODEL_AUDIT",    DEFAULT_MODEL),
 }
-PER_SKILL_TIMEOUT = 180
+# B11: timeout budget — keep inner < outer at every layer so a valid (working)
+# run is never killed by an outer timeout:
+#   per-skill wall = PER_SKILL_TIMEOUT + SUBPROC_GRACE = 120s
+#   chain budget   = 5 skills x 120s = 600s   (< bridge PIPELINE_TIMEOUT 700s)
+#   bridge 700s    (< n8n HTTP Request node timeout 760s)
+PER_SKILL_TIMEOUT = 90
+SUBPROC_GRACE = 30
 # B5: defense-in-depth cap on the untrusted email body (the bridge caps too).
 MAX_EMAIL_BODY_CHARS = 50_000
 
@@ -113,7 +119,7 @@ def call_skill(skill_name: str, user_message: str, session_tag: str) -> dict:
         "--timeout", str(PER_SKILL_TIMEOUT),
         "--message", msg,
     ]
-    p = subprocess.run(cmd, capture_output=True, text=True, timeout=PER_SKILL_TIMEOUT + 30)
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=PER_SKILL_TIMEOUT + SUBPROC_GRACE)
     if p.returncode != 0:
         raise RuntimeError(f"openclaw {skill_name} failed (rc={p.returncode}): {p.stderr[-800:]}")
     try:

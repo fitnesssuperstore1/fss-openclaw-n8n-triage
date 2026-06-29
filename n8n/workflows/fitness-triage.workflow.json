@@ -22,7 +22,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json) }}",
         "options": {
-          "timeout": 240000
+          "timeout": 760000
         }
       },
       "id": "3fcb9f9f-1ca4-4770-8af2-81d5fb246e70",
@@ -33,7 +33,8 @@
         -1808,
         -368
       ],
-      "notes": "POSTs the email to the host bridge (127.0.0.1:8088) which runs the fitness-triage OpenClaw skill, creates the Gmail DRAFT (IMAP append, never sends) and the Monday card, and returns the routing-decision JSON. Reachable because the container uses --network host."
+      "notes": "POSTs the email to the host bridge (127.0.0.1:8088) which runs the fitness-triage OpenClaw skill, creates the Gmail DRAFT (IMAP append, never sends) and the Monday card, and returns the routing-decision JSON. Reachable because the container uses --network host.",
+      "retryOnFail": false
     },
     {
       "parameters": {

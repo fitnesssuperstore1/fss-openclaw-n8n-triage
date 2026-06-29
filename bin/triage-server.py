@@ -22,6 +22,9 @@ HOST, PORT = "127.0.0.1", 8088
 # email body before it reaches the model.
 MAX_REQUEST_BYTES = 512 * 1024     # 512 KB whole-request ceiling
 MAX_EMAIL_BODY_CHARS = 50_000      # per-field email-body cap
+# B11: pipeline timeout > chain budget (5 skills x 120s = 600s) with margin.
+# The n8n HTTP Request node timeout must be >= this (set to 760000 ms).
+PIPELINE_TIMEOUT = 700
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def _send(self, code, obj):
@@ -90,7 +93,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
             # pipeline writes out/<name>.decision.json where name = email basename
             name = os.path.basename(email_path).removesuffix(".json")
-            proc = subprocess.run(args, capture_output=True, text=True, timeout=240)
+            try:
+                proc = subprocess.run(args, capture_output=True, text=True, timeout=PIPELINE_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                # B11: fail cleanly on timeout. Monday's message_id idempotency
+                # keeps a retry from creating a duplicate card.
+                print("[bridge] pipeline timeout after %ds for %s" % (PIPELINE_TIMEOUT, name))
+                return self._send(504, {"error": "pipeline timeout"})
             dec_path = os.path.join(ROOT, "out", "%s.decision.json" % name)
             decision = None
             if os.path.exists(dec_path):
