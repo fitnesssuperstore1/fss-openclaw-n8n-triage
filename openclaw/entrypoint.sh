@@ -29,9 +29,10 @@ echo "[entrypoint] skills visible in workspace:"
 ls /root/.openclaw/workspace/skills/ 2>/dev/null || echo "  (none mounted — check the ./skills bind in docker-compose.yml)"
 
 # B9: bind the gateway to loopback only (so 18789 is not publicly reachable —
-# Traefik proxies it on the same host) and require token auth when a token is
-# provided via OPENCLAW_GATEWAY_TOKEN.
-GW_ARGS=(--force --port "${OPENCLAW_GATEWAY_PORT:-18789}" --bind loopback)
+# Traefik proxies it on the same host), allow start without an interactive
+# config (the image ships no gateway config — otherwise it exits 78 "Missing
+# config"), and require token auth when OPENCLAW_GATEWAY_TOKEN is provided.
+GW_ARGS=(--force --port "${OPENCLAW_GATEWAY_PORT:-18789}" --bind loopback --allow-unconfigured)
 if [ -n "${OPENCLAW_GATEWAY_TOKEN:-}" ]; then
   GW_ARGS+=(--auth token)   # token value read from OPENCLAW_GATEWAY_TOKEN env
 fi
