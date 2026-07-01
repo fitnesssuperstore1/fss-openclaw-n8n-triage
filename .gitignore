@@ -134,3 +134,4 @@ tmp/
 /docs/PRE_COMMIT_CHECKLIST.md
 /docs/TEST_CASES.md
 /docs/TEST_RUN_RESULTS.md
+!evidence/docker-compose-build.log
