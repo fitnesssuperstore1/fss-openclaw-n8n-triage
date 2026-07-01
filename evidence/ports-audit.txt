@@ -1,0 +1,7 @@
+# Ports audit (B9) — internal services bound to loopback only (not publicly reachable)
+  LISTEN 127.0.0.1:18790
+  LISTEN 127.0.0.1:8088
+  LISTEN 127.0.0.1:8080
+  LISTEN [::1]:18790
+# (gateway used 18790 on the shared test box since 18789 was taken by another tenant;
+#  canonical is 18789 — same loopback bind. A host firewall is the belt-and-suspenders.)

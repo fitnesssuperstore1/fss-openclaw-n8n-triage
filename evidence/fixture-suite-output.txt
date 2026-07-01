@@ -1,0 +1,26 @@
+# Full fixture suite — corrected chain, run 2026-07-01T11:04Z
+sops bundle: 12 SOPs written to /tmp/runs/sops.json
+
+Running 16 fixture(s) through the chain. Outputs in /tmp/runs/
+
+  ✓ case01  (66s)  OK
+  ✓ case02  (65s)  OK
+  ✓ case03  (62s)  OK
+  ✓ case04  (57s)  OK
+  ✓ case05  (63s)  OK
+  ✓ case06  (13s)  OK
+  ✓ case07  (30s)  OK
+  ✓ case08  (61s)  OK
+  ✓ case09  (56s)  OK
+  ✓ case10  (49s)  OK
+  ✓ edge_01_ach_meta_hybrid  (29s)  OK
+  ✓ internal_01_sop_question  (43s)  OK
+  ✓ internal_02_process_ownership  (84s)  OK
+  ✓ internal_03_gorgias_vs_internal  (67s)  OK
+  ✓ internal_04_leadership_ach  (13s)  OK
+  ✓ internal_05_internal_cleanup  (45s)  OK
+
+----------------------------------------------------------------------
+Summary:  16 passed | 0 failed | 0 errored | total 16
+Outputs:  /tmp/runs/
+----------------------------------------------------------------------

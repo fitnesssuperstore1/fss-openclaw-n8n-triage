@@ -1,0 +1,3 @@
+# Slack absence — every workflow export (B1). Expect 0.
+fitness-triage.workflow.json: slack hits = 0
+fs-approval-to-draft.workflow.json: slack hits = 0

@@ -1,0 +1,15 @@
+# Bridge temp files + response hardening (B6)
+
+## Secure unique temp files (mode 0600) + guaranteed cleanup (bin/triage-server.py):
+  81:            fd, email_path = tempfile.mkstemp(prefix="triage-", suffix=".json")
+  82:            tmp_paths.append(email_path)
+  88:                fd2, sops_path = tempfile.mkstemp(prefix="triage-", suffix=".sops.json")
+  89:                tmp_paths.append(sops_path)
+  118:        finally:
+  121:                    os.remove(p)
+
+## Response returns ONLY the routing decision — no pipeline_log/stdout/stderr; oversized reject + failure detail stays server-side:
+  55:            return self._send(413, {"error": "payload too large"})
+  61:            return self._send(400, {"error": "bad json"})
+  115:                return self._send(502, {"error": "triage failed"})
+  117:            self._send(200, {"decision": decision})

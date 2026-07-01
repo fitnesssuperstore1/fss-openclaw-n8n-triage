@@ -1,0 +1,8 @@
+# Timeout budget (B11) — inner < outer at every layer
+71:#   per-skill wall = PER_SKILL_TIMEOUT + SUBPROC_GRACE = 120s
+74:PER_SKILL_TIMEOUT = 90
+75:SUBPROC_GRACE = 30
+27:PIPELINE_TIMEOUT = 700
+98:            except subprocess.TimeoutExpired:
+[('OpenClaw triage (HTTP bridge)', 760000, False)]
+layering: per-skill 120s < chain 600s < bridge 700s < n8n 760s

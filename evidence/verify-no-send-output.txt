@@ -1,0 +1,11 @@
+# verify_no_send.sh against every export (B2). Exit 0 = clean.
+## n8n/workflows/fitness-triage.workflow.json
+verify_no_send: scanned 9 node(s) in n8n/workflows/fitness-triage.workflow.json
+verify_no_send: OK — no Send/Reply/SMTP/Forward node found.
+exit: 0
+
+## n8n/workflows/fs-approval-to-draft.workflow.json
+verify_no_send: scanned 10 node(s) in n8n/workflows/fs-approval-to-draft.workflow.json
+verify_no_send: OK — no Send/Reply/SMTP/Forward node found.
+exit: 0
+

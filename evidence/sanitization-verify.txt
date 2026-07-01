@@ -1,0 +1,3 @@
+# Sanitization check (B3): pinData/staticData/instanceId/credId/email all 0.
+fitness-triage.workflow.json: pinData=False staticData=False instanceId=False credIds=0 emails=0
+fs-approval-to-draft.workflow.json: pinData=False staticData=False instanceId=False credIds=0 emails=0
