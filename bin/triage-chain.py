@@ -271,6 +271,53 @@ def make_escalate_decision(primary_lane, sop, reason, approver, draft=None,
 
 
 # -----------------------------------------------------------------------------
+# Finance / ACH safety guard (DETERMINISTIC — must not depend on the models)
+# -----------------------------------------------------------------------------
+# A money-movement email addressed to a finance/accounts/owner/internal-triage
+# inbox must ALWAYS reach a human (Owner review, draft=null) and can NEVER be
+# silently dropped as out_of_scope/unknown — even from an external sender.
+# (Milestone 1 originally dropped all external mail; this closes the BEC /
+# vendor-payment-change hole.) Errs safe: when unsure it escalates, never drops.
+_FINANCE_INBOX_HINTS = (
+    "accounts", "accounts-payable", "accountspayable", "ap@", "payable",
+    "finance", "billing", "invoicing", "invoices", "owner", "treasury",
+    "treasurer", "controller", "triage", "leadership", "ceo", "cfo", "coo",
+)
+_MONEY_RX = re.compile(
+    r"\b(?:ach|wire|bank|banking|routing|iban|swift|sort\s*code|remittance|"
+    r"payee|invoice|payment|direct\s*deposit)\b"
+    r"|\baccount\s*(?:number|details|no\.?|#)"
+    r"|\b(?:chang|updat|new|confirm|verif)\w*\s+(?:the\s+)?"
+    r"(?:bank|account|payment|routing|ach|wire|banking|deposit|details)\b",
+    re.I,
+)
+
+def is_finance_sensitive(email: dict) -> bool:
+    """True when the email is about money movement AND addressed to a
+    finance/accounts/owner/internal-triage inbox."""
+    to = (email.get("to", "") or "").lower()
+    text = (email.get("subject", "") or "") + "\n" + (email.get("body", "") or "")
+    return any(h in to for h in _FINANCE_INBOX_HINTS) and bool(_MONEY_RX.search(text))
+
+
+def make_finance_owner_decision(email):
+    """Deterministic Finance/ACH -> Owner escalation (draft=null), in scope."""
+    dec = make_escalate_decision(
+        primary_lane="Finance / ACH / Owner Approval",
+        sop={"id": "SOP-06", "status": "Active", "title": "Vendor ACH / Payment Change Approval"},
+        reason=("Money-movement email (ACH / wire / payment / bank-detail change) addressed to "
+                "a finance/accounts/owner inbox. Owner must verify out-of-band; the system never "
+                "confirms payment or replies. Routed to Owner regardless of sender "
+                "(vendor-payment-change / BEC-fraud safety)."),
+        approver="Owner",
+        internal_note="Finance-sensitive deterministic guard: possible vendor payment change or impersonation/BEC.",
+    )
+    dec["scope_label"] = "internal"
+    dec["case_summary"] = "Finance-sensitive email to a finance inbox — Owner review required (draft=null)"
+    return dec
+
+
+# -----------------------------------------------------------------------------
 # Main chain
 # -----------------------------------------------------------------------------
 
@@ -293,6 +340,19 @@ def main():
 
     schema_errors = []
     session_tag = pathlib.Path(email_path).stem
+
+    # ------------------------------------------------------------------
+    # CRITICAL SAFETY GUARD (finance/ACH) — runs BEFORE scope_gate and before
+    # SKIP_SCOPE_GATE. A money-movement email to a finance/accounts/owner/
+    # internal-triage inbox must ALWAYS reach a human (Owner, draft=null) and can
+    # NEVER be dropped as out_of_scope/unknown, even from an external sender.
+    # Deterministic so it never depends on the models; scope_gate + classify add
+    # defense in depth, but this is the hard guarantee.
+    # ------------------------------------------------------------------
+    if is_finance_sensitive(email):
+        print("[chain] FINANCE-SENSITIVE guard -> forced Owner escalation (draft=null)", file=sys.stderr)
+        print(json.dumps(make_finance_owner_decision(email), indent=2))
+        return
 
     # ------------------------------------------------------------------
     # 0) scope_gate — first gate of Phase 1. Decide whether this email is

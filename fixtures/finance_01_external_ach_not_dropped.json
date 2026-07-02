@@ -1,0 +1,16 @@
+{
+  "from": "ap@vendor-strengthsupply.example.com",
+  "to": "accounts@frenchfitness.com",
+  "subject": "Updated banking details for future payments",
+  "body": "Hello, our company has switched banks. Please update our ACH details and route the next payment to our new account: routing 021000021, account 123456789. Kindly confirm once the change is made.",
+  "received_at": "2026-07-01T09:00:00Z",
+  "case_id": "finance_01",
+  "note": "EXTERNAL sender to accounts@ requesting a bank-detail/ACH change. Original M1 dropped all external mail (out_of_scope/unknown); the finance-safety guard must keep it in-scope and route it to Owner review with draft=null (vendor-payment-change / BEC-fraud safety). Runs in production mode (no SKIP_SCOPE_GATE) to prove scope_gate does not drop it.",
+  "expected_outcome": {
+    "in_scope": true,
+    "scope_label": "internal",
+    "primary_lane": "Finance / ACH / Owner Approval",
+    "action": "escalate",
+    "approver_role": "Owner"
+  }
+}

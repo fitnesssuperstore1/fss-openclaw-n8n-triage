@@ -1,0 +1,41 @@
+# Finance / ACH safety fix — verification (critical-fixes review #1)
+
+## What was wrong
+Original Milestone 1 scope_gate dropped ALL external mail (in_scope=false).
+An external vendor/scammer emailing accounts@/finance@ about a bank-detail /
+ACH change was silently scoped out — the BEC/vendor-payment-change hole.
+
+## Fix
+Deterministic guard in bin/triage-chain.py (runs BEFORE scope_gate): any money-
+movement email to a finance/accounts/owner/internal-triage inbox is forced to
+Owner review with draft=null and can never be dropped, even from an external
+sender. Backed up by a top-priority Rule 0 in skills/scope_gate/SKILL.md.
+
+## Test fixture (production mode, scope_gate ON)
+fixtures/finance_01_external_ach_not_dropped.json
+  external ap@vendor-strengthsupply.example.com -> accounts@ -> "update our ACH
+  banking details, route the next payment to the new account".
+
+## Decision produced (deterministic guard, 0 model calls)
+  action        = escalate
+  primary_lane  = Finance / ACH / Owner Approval
+  approver_role = Owner
+  draft         = null
+  scope_label   = internal   (in scope — NOT dropped)
+
+## Detector precision (positive + negative)
+  external -> accounts@ ACH ............. fires  (correct)
+  finance@ invoice/wire ................. fires  (correct)
+  owner@ bank change .................... fires  (correct)
+  customer order -> sales@ .............. quiet  (correct)
+  accounts@ but no money (team lunch) ... quiet  (correct)
+  support@ customer refund .............. quiet  (correct)
+
+## Monday wiring (Monday trial expired -> not a code error)
+monday-card.sh built the item + posted create_item to api.monday.com and the
+token authenticated; the account returned:
+  403 UserUnauthorizedException ("User unauthorized to perform action")
+This proves the request is well-formed and reaches Monday — if the account were
+active, the card would be created (with "Awaiting Review" stamped for the
+escalate/approval-required decision). Bug also caught + fixed: the item name is
+now truncated to <256 chars (Monday's ItemNameTooLongException limit).
