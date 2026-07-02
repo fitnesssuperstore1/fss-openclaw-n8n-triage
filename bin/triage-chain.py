@@ -43,7 +43,7 @@ except ImportError:
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from sop_source import InMemorySopSource
 
-HOME = pathlib.Path(os.environ.get("HOME", "/home/yoni"))
+HOME = pathlib.Path(os.environ.get("HOME", "/root"))
 ROOT = HOME / "Arvin"
 SCHEMAS = ROOT / "schemas"
 # Host installs openclaw at ~/.npm-global/bin; the docker image at

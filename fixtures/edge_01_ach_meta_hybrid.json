@@ -1,9 +1,9 @@
 {
   "case_id": "edge_01",
-  "from": "abiykibru6@gmail.com",
-  "to": "novanavi30+accounts@gmail.com",
-  "subject": "[internal] ACH wire confirmation needed — invoice INV-3382 ($6,475)",
-  "body": "Hey team,\n\nQuick question on SOP governance — which SOP do we follow for handling vendor onboarding requests right now? I see SOP-12 and REF-04 both mention it and I want to make sure I'm pointing the new ops hire at the right one.\n\nThanks,\nTim",
+  "from": "finance.lead@frenchfitness.com",
+  "to": "accounts@frenchfitness.com",
+  "subject": "[internal] ACH wire confirmation needed \u2014 invoice INV-3382 ($6,475)",
+  "body": "Hey team,\n\nQuick question on SOP governance \u2014 which SOP do we follow for handling vendor onboarding requests right now? I see SOP-12 and REF-04 both mention it and I want to make sure I'm pointing the new ops hire at the right one.\n\nThanks,\nTim",
   "received_at": "2026-06-11T10:00:00Z",
   "expected_outcome": {
     "in_scope": true,
@@ -11,6 +11,6 @@
     "primary_lane": "Finance / ACH / Owner Approval",
     "action": "escalate",
     "approver_role": "Owner",
-    "notes": "EDGE CASE — hybrid email: ACH/payment language in the subject, SOP-governance meta-question in the body. Found live on 2026-06-11 when the same email classified differently across two runs (Finance/ACH escalate vs meta-question draft). classify_email Rule 1 was patched to explicitly override Rule 2: money language anywhere in the email forces Finance / ACH / Owner Approval, deterministically. Mixed signals involving money must NEVER resolve to the softer reading."
+    "notes": "EDGE CASE \u2014 hybrid email: ACH/payment language in the subject, SOP-governance meta-question in the body. Found live on 2026-06-11 when the same email classified differently across two runs (Finance/ACH escalate vs meta-question draft). classify_email Rule 1 was patched to explicitly override Rule 2: money language anywhere in the email forces Finance / ACH / Owner Approval, deterministically. Mixed signals involving money must NEVER resolve to the softer reading."
   }
 }

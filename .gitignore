@@ -135,3 +135,4 @@ tmp/
 /docs/TEST_CASES.md
 /docs/TEST_RUN_RESULTS.md
 !evidence/docker-compose-build.log
+.stage1-attic/

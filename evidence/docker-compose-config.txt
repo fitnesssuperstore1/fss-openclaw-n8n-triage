@@ -2,7 +2,7 @@ name: arvin
 services:
   bridge:
     build:
-      context: /home/yoni/Arvin/openclaw
+      context: /home/deploy/Arvin/openclaw
       dockerfile: Dockerfile
     entrypoint:
       - /bridge-entrypoint.sh
@@ -19,42 +19,42 @@ services:
     restart: unless-stopped
     volumes:
       - type: bind
-        source: /home/yoni/Arvin/bin
+        source: /home/deploy/Arvin/bin
         target: /root/Arvin/bin
         read_only: true
         bind: {}
       - type: bind
-        source: /home/yoni/Arvin/schemas
+        source: /home/deploy/Arvin/schemas
         target: /root/Arvin/schemas
         read_only: true
         bind: {}
       - type: bind
-        source: /home/yoni/Arvin/sops
+        source: /home/deploy/Arvin/sops
         target: /root/Arvin/sops
         read_only: true
         bind: {}
       - type: bind
-        source: /home/yoni/Arvin/fixtures
+        source: /home/deploy/Arvin/fixtures
         target: /root/Arvin/fixtures
         read_only: true
         bind: {}
       - type: bind
-        source: /home/yoni/Arvin/config
+        source: /home/deploy/Arvin/config
         target: /root/Arvin/config
         read_only: true
         bind: {}
       - type: bind
-        source: /home/yoni/Arvin/scripts
+        source: /home/deploy/Arvin/scripts
         target: /root/Arvin/scripts
         read_only: true
         bind: {}
       - type: bind
-        source: /home/yoni/Arvin/skills
+        source: /home/deploy/Arvin/skills
         target: /root/.openclaw/workspace/skills
         read_only: true
         bind: {}
       - type: bind
-        source: /home/yoni/secrets
+        source: /home/deploy/secrets
         target: /root/secrets
         read_only: true
         bind: {}
@@ -108,13 +108,13 @@ services:
         target: /home/node/.n8n
         volume: {}
       - type: bind
-        source: /home/yoni/Arvin/n8n/workflows
+        source: /home/deploy/Arvin/n8n/workflows
         target: /workflows
         read_only: true
         bind: {}
   openclaw:
     build:
-      context: /home/yoni/Arvin/openclaw
+      context: /home/deploy/Arvin/openclaw
       dockerfile: Dockerfile
     environment:
       OPENAI_API_KEY: ""
@@ -128,7 +128,7 @@ services:
         target: /root/.openclaw
         volume: {}
       - type: bind
-        source: /home/yoni/Arvin/skills
+        source: /home/deploy/Arvin/skills
         target: /root/.openclaw/workspace/skills
         bind: {}
   traefik:
@@ -137,17 +137,17 @@ services:
     restart: unless-stopped
     volumes:
       - type: bind
-        source: /home/yoni/Arvin/infra/traefik/traefik.yml
+        source: /home/deploy/Arvin/infra/traefik/traefik.yml
         target: /etc/traefik/traefik.yml
         read_only: true
         bind: {}
       - type: bind
-        source: /home/yoni/Arvin/infra/traefik/dynamic
+        source: /home/deploy/Arvin/infra/traefik/dynamic
         target: /etc/traefik/dynamic
         read_only: true
         bind: {}
       - type: bind
-        source: /home/yoni/Arvin/infra/traefik/letsencrypt
+        source: /home/deploy/Arvin/infra/traefik/letsencrypt
         target: /letsencrypt
         bind: {}
 networks:

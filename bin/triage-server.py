@@ -8,7 +8,7 @@ POST /triage   body shapes:
                   Monday card) and returns the routing-decision JSON.
                If sops are provided, they are written to a sidecar JSON file
                and the pipeline embeds them in the OpenClaw prompt instead of
-               having OpenClaw read /home/yoni/Arvin/sops/ off disk.
+               having OpenClaw read ~/Arvin/sops/ off disk.
 GET  /health   -> {"ok":true}
 
 Binds 127.0.0.1:8088 (loopback only). A host-networked n8n container reaches it
