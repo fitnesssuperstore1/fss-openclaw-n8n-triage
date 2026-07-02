@@ -1,0 +1,28 @@
+# Fix #2 — no internal metadata in customer-visible drafts
+
+## What was wrong
+skills/draft_response/SKILL.md REQUIRED the draft body to end with an internal
+footer:  [DRAFT — pending human approval | lane: <lane> | SOP: <sop_id> (Active)]
+That leaked lane names + SOP ids into the customer-visible Gmail draft (and it
+contradicted the skill's own "never quote SOP ids in the body" rule).
+
+## Fix
+Removed the footer requirement; draft_body must now be a clean customer-facing
+reply only. Lane/SOP live only in the Monday card + audit fields. The approval-
+pending state is tracked by the workflow + Monday "Awaiting Review", not by text
+inside the draft.
+
+## Verification (draft_response run directly, clear SOP-01 input)
+draft_body produced:
+---
+Hi,
+
+Thanks for reaching out about order FS-1234. Your paid order is in our
+fulfillment queue, and tracking information will be sent once the treadmill
+ships.
+
+Best,
+Fitness Superstore
+---
+Scan for internal metadata ([DRAFT / lane: / SOP- / REF- / ARCH- / pending
+human approval): NONE — clean.
