@@ -10,12 +10,12 @@
 # Skills are NOT baked in — the host's ./skills folder is bind-mounted into
 # the workspace (see docker-compose.yml). Editing a SKILL.md on the host is
 # live in the container immediately.
-FROM node:22-slim
+FROM node:22.22.3-slim
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends python3 python3-jsonschema jq ca-certificates curl \
  && rm -rf /var/lib/apt/lists/* \
- && npm install -g openclaw && npm cache clean --force
+ && npm install -g openclaw@2026.6.5 && npm cache clean --force
 
 RUN mkdir -p /root/.openclaw/workspace/skills /root/Arvin/out
 

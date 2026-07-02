@@ -3,14 +3,14 @@
   "from": "tim.gardner@frenchfitness.com",
   "to": "team@frenchfitness.com",
   "subject": "[internal] Which SOP controls vendor onboarding right now?",
-  "body": "Hey team,\n\nQuick question on SOP governance — which SOP do we follow for handling vendor onboarding requests right now? I see SOP-12 and REF-04 both mention it and I want to make sure I'm pointing the new ops hire at the right one.\n\nThanks,\nTim",
+  "body": "Hey team,\n\nQuick question on SOP governance \u2014 which SOP do we follow for handling vendor onboarding requests right now? I see SOP-12 and REF-04 both mention it and I want to make sure I'm pointing the new ops hire at the right one.\n\nThanks,\nTim",
   "received_at": "2026-06-10T09:15:00Z",
   "expected_outcome": {
     "in_scope": true,
     "scope_label": "internal",
     "primary_lane": "Escalate / Needs Human Review",
     "action": "escalate",
-    "approver_role": "Ops Manager",
-    "notes": "Internal SOP-governance question — no Active SOP for 'which SOP do we use' meta-questions, so the chain should escalate to a human for an authoritative answer. Ops Manager owns SOP governance."
+    "approver_role": "CS Lead",
+    "notes": "Internal SOP-governance question \u2014 no Active SOP for 'which SOP do we use' meta-questions, so the chain should escalate to a human for an authoritative answer. Ops Manager owns SOP governance."
   }
 }

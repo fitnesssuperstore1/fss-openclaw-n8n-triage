@@ -1,0 +1,164 @@
+name: arvin
+services:
+  bridge:
+    build:
+      context: /home/yoni/Arvin/openclaw
+      dockerfile: Dockerfile
+    entrypoint:
+      - /bridge-entrypoint.sh
+    environment:
+      GMAIL_USER: ""
+      MONDAY_API_TOKEN: ""
+      MONDAY_APPROVAL_COL_ID: ""
+      MONDAY_BOARD_ID: ""
+      MONDAY_GMAIL_MSGID_COL_ID: ""
+      OPENAI_API_KEY: ""
+      OPENCLAW_BIN: /usr/local/bin/openclaw
+      OPENCLAW_MODEL: openai/gpt-5.5
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /home/yoni/Arvin/bin
+        target: /root/Arvin/bin
+        read_only: true
+        bind: {}
+      - type: bind
+        source: /home/yoni/Arvin/schemas
+        target: /root/Arvin/schemas
+        read_only: true
+        bind: {}
+      - type: bind
+        source: /home/yoni/Arvin/sops
+        target: /root/Arvin/sops
+        read_only: true
+        bind: {}
+      - type: bind
+        source: /home/yoni/Arvin/fixtures
+        target: /root/Arvin/fixtures
+        read_only: true
+        bind: {}
+      - type: bind
+        source: /home/yoni/Arvin/config
+        target: /root/Arvin/config
+        read_only: true
+        bind: {}
+      - type: bind
+        source: /home/yoni/Arvin/scripts
+        target: /root/Arvin/scripts
+        read_only: true
+        bind: {}
+      - type: bind
+        source: /home/yoni/Arvin/skills
+        target: /root/.openclaw/workspace/skills
+        read_only: true
+        bind: {}
+      - type: bind
+        source: /home/yoni/secrets
+        target: /root/secrets
+        read_only: true
+        bind: {}
+      - type: volume
+        source: bridge_claw_state
+        target: /root/.openclaw/agents
+        volume: {}
+      - type: volume
+        source: bridge_out
+        target: /root/Arvin/out
+        volume: {}
+  n8n:
+    depends_on:
+      n8n-import:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      GENERIC_TIMEZONE: UTC
+      N8N_ENCRYPTION_KEY: ""
+      N8N_HOST: ""
+      N8N_LISTEN_ADDRESS: 127.0.0.1
+      N8N_PORT: "8080"
+      N8N_PROTOCOL: https
+      N8N_SECURE_COOKIE: "true"
+      SOP_ACTIVE_FOLDER_ID: ""
+      SOP_ARCHIVED_FOLDER_ID: ""
+      SOP_REFERENCE_FOLDER_ID: ""
+      WEBHOOK_URL: ""
+    image: docker.n8n.io/n8nio/n8n:2.21.7
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: n8n_data
+        target: /home/node/.n8n
+        volume: {}
+  n8n-import:
+    command:
+      - -c
+      - if [ ! -f /home/node/.n8n/.workflows-imported ]; then n8n import:workflow --separate --input=/workflows && touch /home/node/.n8n/.workflows-imported; else echo 'workflows already imported, skipping'; fi
+    entrypoint:
+      - /bin/sh
+    environment:
+      N8N_ENCRYPTION_KEY: ""
+    image: docker.n8n.io/n8nio/n8n:2.21.7
+    networks:
+      default: null
+    volumes:
+      - type: volume
+        source: n8n_data
+        target: /home/node/.n8n
+        volume: {}
+      - type: bind
+        source: /home/yoni/Arvin/n8n/workflows
+        target: /workflows
+        read_only: true
+        bind: {}
+  openclaw:
+    build:
+      context: /home/yoni/Arvin/openclaw
+      dockerfile: Dockerfile
+    environment:
+      OPENAI_API_KEY: ""
+      OPENCLAW_GATEWAY_PORT: "18789"
+      OPENCLAW_GATEWAY_TOKEN: ""
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: openclaw_data
+        target: /root/.openclaw
+        volume: {}
+      - type: bind
+        source: /home/yoni/Arvin/skills
+        target: /root/.openclaw/workspace/skills
+        bind: {}
+  traefik:
+    image: traefik:v3.2.5
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /home/yoni/Arvin/infra/traefik/traefik.yml
+        target: /etc/traefik/traefik.yml
+        read_only: true
+        bind: {}
+      - type: bind
+        source: /home/yoni/Arvin/infra/traefik/dynamic
+        target: /etc/traefik/dynamic
+        read_only: true
+        bind: {}
+      - type: bind
+        source: /home/yoni/Arvin/infra/traefik/letsencrypt
+        target: /letsencrypt
+        bind: {}
+networks:
+  default:
+    name: arvin_default
+volumes:
+  bridge_claw_state:
+    name: arvin_bridge_claw_state
+  bridge_out:
+    name: arvin_bridge_out
+  n8n_data:
+    name: arvin_n8n_data
+  openclaw_data:
+    name: arvin_openclaw_data

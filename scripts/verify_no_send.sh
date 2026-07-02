@@ -65,12 +65,21 @@ BANNED_TYPE_TOKENS = [
 
 # Banned tokens in node.parameters.operation — Gmail/IMAP nodes are okay if
 # they're drafting/labeling/searching but NOT if they're sending/replying/etc.
+# Stored lowercase and ALWAYS compared against operation.lower(). (The previous
+# version compared a lowercased operation against camelCase entries, so
+# sendAndWait / sendMessage / sendEmail / replyTo / replyAll never matched and
+# slipped through.)
 BANNED_OPERATIONS = {
-    "send", "reply", "replyTo", "replyAll", "forward",
-    "sendAndWait",      # sendAndWait sends a message to the user
-    "sendMessage",
-    "sendEmail",
+    "send", "reply", "replyto", "replyall", "forward",
+    "sendandwait", "sendmessage", "sendemail",
 }
+# Substring safety net: any operation whose lowercased name contains one of
+# these verbs is treated as send/reply/forward — catches future variants too.
+BANNED_OP_SUBSTRINGS = ("send", "reply", "forward")
+
+def is_send_op(op):
+    o = (op or "").strip().lower()
+    return bool(o) and (o in BANNED_OPERATIONS or any(s in o for s in BANNED_OP_SUBSTRINGS))
 
 # Allowed operations on Gmail/IMAP-like nodes
 ALLOWED_GMAIL_OPERATIONS = {
@@ -124,7 +133,7 @@ for node, src in walk_nodes(wf, "workflow"):
             "get", "getall", "addlabels", "removelabels", "trash", "untrash",
             "search",
         }
-        if operation.lower() in BANNED_OPERATIONS:
+        if is_send_op(operation):
             violations.append({
                 "node": nname, "type": ntype, "operation": operation,
                 "reason": "Gmail node uses a SEND/REPLY/FORWARD operation",
@@ -138,7 +147,7 @@ for node, src in walk_nodes(wf, "workflow"):
 
     # 3) Any node with a banned operation regardless of type (covers generic
     # send nodes that don't have 'gmail' in their type string)
-    if operation.lower() in BANNED_OPERATIONS and "gmail" not in ntype.lower():
+    if is_send_op(operation) and "gmail" not in ntype.lower():
         # Any non-Gmail node using a send/reply/forward operation is flagged for
         # human review — the workflow must contain no outbound-send nodes.
         violations.append({

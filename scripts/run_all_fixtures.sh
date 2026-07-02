@@ -9,8 +9,10 @@
 #   bash scripts/run_all_fixtures.sh
 #
 # Exit code:
-#   0 — every fixture's actual decision matched its expected_outcome
-#   1 — at least one fixture mismatched (or hard-errored)
+#   0 — every fixture was ASSERTED and its decision matched expectations
+#   1 — at least one fixture mismatched, hard-errored, or declared NO expectation
+#       (B7: a fixture with no expected_outcome AND no expected_lane is a failure,
+#        not a silent skip)
 #   2 — environment problem (missing chain script, missing fixtures dir, etc.)
 #
 # Env vars honored:
@@ -90,7 +92,15 @@ for f in "${fixtures[@]}"; do
   dec="$RUNS_DIR/${name}.decision.json"
   err="$RUNS_DIR/${name}.stderr"
   start=$(date +%s)
-  if ! python3 "$CHAIN_BIN" "$f" "$SOPS_FILE" > "$dec" 2> "$err"; then
+  # B7: case* fixtures carry a top-level expected_lane and are engine-regression
+  # cases — run them with SKIP_SCOPE_GATE=1 so the engine classifies a lane
+  # instead of scope_gate short-circuiting them to out_of_scope. In-scope
+  # fixtures (expected_outcome.*) run normally through the gate.
+  skip_env=""
+  if python3 -c "import json,sys; sys.exit(0 if json.load(open('$f')).get('expected_lane') else 1)"; then
+    skip_env="SKIP_SCOPE_GATE=1"
+  fi
+  if ! env $skip_env python3 "$CHAIN_BIN" "$f" "$SOPS_FILE" > "$dec" 2> "$err"; then
     elapsed=$(($(date +%s) - start))
     echo "  ✗ $name  ERRORED in ${elapsed}s — see $err"
     errored=$((errored + 1))
@@ -104,31 +114,33 @@ for f in "${fixtures[@]}"; do
 import json, sys
 fix = json.load(open(sys.argv[1]))
 dec = json.load(open(sys.argv[2]))
-exp = fix.get("expected_outcome", {})
-if not exp:
-    print("no expected_outcome — skipped diff")
-    sys.exit(0)
+exp = fix.get("expected_outcome", {}) or {}
+exp_lane = fix.get("expected_lane")
+
+# B7: a fixture with NO assertions (no expected_outcome AND no expected_lane) is
+# a HARD FAILURE — the runner must never silently skip / pass an unasserted case.
+if not exp and exp_lane is None:
+    print("NO_EXPECTATION — fixture declares no expected_outcome or expected_lane")
+    sys.exit(2)
 
 mismatches = []
-def check(field, getter):
-    expected = exp.get(field)
-    actual = getter(dec)
-    # If expected is explicitly set, actual must match. Missing expected = skip.
-    if field not in exp:
-        return
-    if expected != actual:
-        mismatches.append(f"{field}: expected {expected!r}, got {actual!r}")
+def check(field, actual):
+    if field in exp and exp[field] != actual:
+        mismatches.append(f"{field}: expected {exp[field]!r}, got {actual!r}")
 
-check("action",        lambda d: d.get("action"))
-check("scope_label",   lambda d: d.get("scope_label"))
-check("primary_lane",  lambda d: d.get("primary_lane"))
-check("approver_role", lambda d: d.get("approver_role"))
-check("route_to",      lambda d: d.get("route_to"))
+check("action",        dec.get("action"))
+check("scope_label",   dec.get("scope_label"))
+check("primary_lane",  dec.get("primary_lane"))
+check("approver_role", dec.get("approver_role"))
+check("route_to",      dec.get("route_to"))
 # controlling_sop in expected_outcome is just the SOP id string
 if "controlling_sop" in exp:
     actual_sop = (dec.get("controlling_sop") or {}).get("id")
     if exp["controlling_sop"] != actual_sop:
         mismatches.append(f"controlling_sop: expected {exp['controlling_sop']!r}, got {actual_sop!r}")
+# B7: top-level expected_lane asserted against the decision's primary_lane.
+if exp_lane is not None and dec.get("primary_lane") != exp_lane:
+    mismatches.append(f"expected_lane: expected {exp_lane!r}, got {dec.get('primary_lane')!r}")
 # schema_errors must always be empty
 serr = dec.get("schema_errors") or []
 if serr:

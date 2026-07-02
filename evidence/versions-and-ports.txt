@@ -1,0 +1,11 @@
+# Version pins + loopback ports (B9)
+## pinned images
+13:FROM node:22.22.3-slim
+18: && npm install -g openclaw@2026.6.5 && npm cache clean --force
+29:    image: traefik:v3.2.5
+67:    image: docker.n8n.io/n8nio/n8n:2.21.7
+81:    image: docker.n8n.io/n8nio/n8n:2.21.7
+## loopback binds (from clean-box deploy — see clean-clone-run.txt)
+  LISTEN 127.0.0.1:18790
+  LISTEN 127.0.0.1:8088
+  LISTEN 127.0.0.1:8080

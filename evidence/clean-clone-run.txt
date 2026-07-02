@@ -1,0 +1,40 @@
+# Live clean-box deploy evidence — disposable VPS (canonical stack)
+# Built fresh from the corrected branch: node 22.22.3-slim, openclaw 2026.6.5,
+# traefik 3.2.5, n8n 2.21.7. (Reverse proxy skipped where the box already ran
+# its own on 80/443; services on their loopback ports.)
+
+## docker compose config: VALID  |  docker compose build: both images Built
+
+## service health (docker compose ps)
+bridge  Up 43 minutes
+n8n  Up 43 minutes
+openclaw  Up 31 minutes
+
+## ports — bound to 127.0.0.1 only (not publicly reachable)
+  LISTEN 127.0.0.1:18790
+  LISTEN 127.0.0.1:8088
+  LISTEN 127.0.0.1:8080
+  LISTEN [::1]:18790
+
+## bridge health
+  GET /health -> 200
+
+## n8n-import (clean-clone workflow seed)
+  n8n-import-1  | Successfully imported 2 workflows.
+
+## fixture suite — passing fixtures (5-skill chain via openclaw)
+    ✓ case01  (54s)  OK
+    ✓ case02  (74s)  OK
+    ✓ case03  (53s)  OK
+    ✓ case04  (59s)  OK
+    ✓ case05  (48s)  OK
+    ✓ case06  (13s)  OK
+    ✓ case07  (27s)  OK
+    ✓ case08  (51s)  OK
+    ✓ case09  (57s)  OK
+    ✓ case10  (52s)  OK
+    ✓ internal_04_leadership_ach  (13s)  OK
+    ✓ edge_01_ach_meta_hybrid  (23s)  OK
+    ✓ internal_02_process_ownership  (79s)  OK
+    ✓ internal_03_gorgias_vs_internal  (69s)  OK
+    ✓ internal_05_internal_cleanup  (42s)  OK

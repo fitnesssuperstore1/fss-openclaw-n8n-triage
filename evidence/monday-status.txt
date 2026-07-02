@@ -1,0 +1,11 @@
+# Awaiting Review stamping (B8) — needs_review across action x approval_required
+# (escalate/ACH/Owner + approval_required now stamped; route/plain-draft blank)
+
+action=escalate               approval_required=true  -> Awaiting Review: yes
+action=escalate               approval_required=false -> Awaiting Review: yes
+action=route                  approval_required=true  -> Awaiting Review: yes
+action=route                  approval_required=false -> Awaiting Review: no
+action=draft                  approval_required=true  -> Awaiting Review: yes
+action=draft                  approval_required=false -> Awaiting Review: no
+action=draft_pending_approval approval_required=true  -> Awaiting Review: yes
+action=draft_pending_approval approval_required=false -> Awaiting Review: yes

@@ -124,13 +124,18 @@ upd_payload="$(jq -nc --arg i "$item_id" --arg body "$note" \
     variables:{i:$i,body:$body}}')"
 printf '%s' "$upd_payload" | api >/dev/null
 
-# 3) stamp Approval=Awaiting Review ONLY for action=draft_pending_approval —
-# those are drafts OpenClaw generated but that must be approved on Monday before
-# the Gmail draft is created (WF2 does that on approve). A plain `draft` is
-# drafted directly by the main workflow, so it is NOT awaiting anything.
-# route/escalate cards have no draft, so they too are left BLANK — approving
-# them would have nothing to send. Skip if the column id isn't configured.
-if [ -n "${MONDAY_APPROVAL_COL_ID:-}" ] && [ "$action" = "draft_pending_approval" ]; then
+# 3) stamp Approval=Awaiting Review for every card that still needs a human to
+# act: draft_pending_approval (approve -> WF2 creates the Gmail draft), escalate,
+# and anything with approval_required=true (covers ACH / Owner-approval cases).
+# These all sit on the board awaiting review, so the status must be visible.
+# Plain `draft` (drafted directly) and `route` (handed to a team) carry
+# approval_required=false and are left blank. Skip if the column id isn't set.
+needs_review="no"
+case "$action" in
+  draft_pending_approval|escalate) needs_review="yes" ;;
+esac
+[ "$(jq -r '.approval_required // false' "$DEC")" = "true" ] && needs_review="yes"
+if [ -n "${MONDAY_APPROVAL_COL_ID:-}" ] && [ "$needs_review" = "yes" ]; then
   set_payload="$(jq -nc --arg b "$BOARD_ID" --arg i "$item_id" --arg c "$MONDAY_APPROVAL_COL_ID" \
     '{query:"mutation($b:ID!,$i:ID!,$c:String!){change_simple_column_value(board_id:$b,item_id:$i,column_id:$c,value:\"Awaiting Review\"){id}}",
       variables:{b:$b,i:$i,c:$c}}')"
