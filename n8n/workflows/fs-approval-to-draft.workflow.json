@@ -243,7 +243,7 @@
           "name": "REPLACE_ME"
         }
       },
-      "notes": "Same Gmail credential as the main workflow (np9bdfleWVRNhyXu). Creates the holding draft — human still has to click Send."
+      "notes": "Uses the same Gmail credential as the main workflow (connect it in the n8n UI). Creates the holding draft — human still has to click Send."
     },
     {
       "parameters": {
