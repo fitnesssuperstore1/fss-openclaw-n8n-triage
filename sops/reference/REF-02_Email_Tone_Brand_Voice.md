@@ -26,6 +26,8 @@ owner: Marketing / CS
 - Never auto-send in Phase 1 — every reply is a draft for human approval.
 - Never invent policy. If unsure, escalate.
 
-## Draft footer (Phase 1)
-Append an internal marker (not sent to customer) when surfacing the draft:
-`[DRAFT — pending human approval | lane: <lane> | SOP: <id> (<status>)]`
+## Draft body (Phase 1)
+The draft body is clean, customer-facing text only — no internal markers, lane
+names, or SOP ids. Internal metadata (lane, controlling SOP, approval state)
+lives on the Monday card and audit fields; approval is tracked by the Monday
+"Awaiting Review" status, never by text inside the draft.

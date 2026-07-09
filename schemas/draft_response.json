@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "fitness-superstore/draft_response.json",
   "title": "draft_response output",
-  "description": "Strict output schema for the draft_response OpenClaw skill. approval_required is hard-locked to true in Phase 1. draft_body must end with the standard DRAFT marker line.",
+  "description": "Strict output schema for the draft_response OpenClaw skill. approval_required is hard-locked to true in Phase 1. draft_body must be a clean customer-facing reply with no internal metadata (no DRAFT marker, lane names, or SOP ids — those live in the Monday card / audit fields only).",
   "type": "object",
   "required": [
     "draft_subject",
