@@ -317,6 +317,74 @@ def make_finance_owner_decision(email):
     return dec
 
 
+# Trailing internal-metadata footer the draft_response model sometimes appends
+# despite the skill forbidding it — e.g.
+#   [DRAFT — pending human approval | lane: <lane> | SOP: <id> (Active)]
+_FOOTER_RX = re.compile(
+    r"\s*\[\s*draft\b[^\]]*\]\s*$"          # a trailing [DRAFT ...] bracket line
+    r"|\s*^\s*\[[^\]]*pending human approval[^\]]*\]\s*$",  # any pending-approval bracket
+    re.I | re.M,
+)
+
+def _strip_internal_footer(body: str) -> str:
+    """Remove a trailing internal status/approval footer if the model added one."""
+    if not body:
+        return body
+    return _FOOTER_RX.sub("", body).rstrip()
+
+
+# Unified Routing SOP (ACTIVE / CONTROLLED) — maps an internal-governance domain
+# to the ROLE that owns it. Roles only; the current role HOLDER (a person) is
+# resolved from the live Org Chart at runtime and is never hardcoded here. This
+# makes the approver for internal governance/meta questions deterministic instead
+# of leaving it to the draft model's discretion.
+_GOVERNANCE_ROUTING = (
+    # (domain, signal regex over subject+body, owning role)
+    ("sop_governance", re.compile(
+        r"\bwhich sop\b|\bcontrolling sop\b|\bsop\s+govern|\bsop\s+control|"
+        r"\bwhich\s+(?:sop|policy)\s+(?:do we|should we|controls?|govern)", re.I), "Ops Manager"),
+    ("process_ownership", re.compile(
+        r"\bwho\s+(?:currently\s+)?owns\b|\bwho\s+(?:currently\s+)?manages\b|"
+        r"\bprocess owner(?:ship)?\b|\bownership\b", re.I), "Ops Manager"),
+    ("support_channel", re.compile(
+        r"\bgorgias\b|\binternal (?:gmail )?triage\b|\bsupport channel\b|"
+        r"\bfully gorgias-owned\b", re.I), "CS Lead"),
+)
+
+def resolve_governance_approver(email: dict):
+    """Deterministic role for an internal governance/meta question, or (None, None).
+
+    Returns (domain, role). Order = precedence: SOP governance and process
+    ownership are Ops-Manager-owned; support-channel (Gorgias vs internal)
+    questions are CS-Lead-owned.
+    """
+    text = (email.get("subject", "") or "") + "\n" + (email.get("body", "") or "")
+    for domain, rx, role in _GOVERNANCE_ROUTING:
+        if rx.search(text):
+            return domain, role
+    return None, None
+
+
+def resolve_role_holder(role, sop_source):
+    """Resolve an approver ROLE to its CURRENT holder from the live Org Chart
+    (REF-04), retrieved at runtime through the SOP source. Returns the holder's
+    contact string, or None if the Org Chart is unavailable or has no entry for
+    the role. A person is NEVER hardcoded here — when the holder changes, only
+    the Org Chart document is updated.
+    """
+    if not role or sop_source is None:
+        return None
+    for s in sop_source.list_sops():
+        name = ((s.get("name") or "") + " " + (s.title or "")).lower()
+        if "org_chart" in name or "org chart" in name:
+            for line in s.content.splitlines():
+                if role.lower() in line.lower():
+                    m = re.search(r"[\w.+-]+@[\w.-]+\.\w+", line)
+                    if m:
+                        return m.group(0)
+    return None
+
+
 # -----------------------------------------------------------------------------
 # Main chain
 # -----------------------------------------------------------------------------
@@ -413,6 +481,10 @@ def run_engine(email, sop_source, schema_errors, session_tag, scope_label=None):
         # Carry the scope_gate label onto in-scope decisions (only out_of_scope
         # decisions set scope_label directly).
         decision.setdefault("scope_label", scope_label)
+        # Resolve the approver ROLE to its current holder from the live Org Chart
+        # (REF-04) at runtime — never a hardcoded person. None if unresolved.
+        decision.setdefault("approver_holder",
+                            resolve_role_holder(decision.get("approver_role"), sop_source))
         print(json.dumps(decision, indent=2))
     # ------------------------------------------------------------------
     # 1) classify_email
@@ -461,6 +533,79 @@ def run_engine(email, sop_source, schema_errors, session_tag, scope_label=None):
             classification_confidence=confidence,
         ))
         return
+
+    # ------------------------------------------------------------------
+    # Deterministic routing for INTERNAL governance / meta questions.
+    # These are owned by the Unified Routing SOP (ACTIVE / CONTROLLED); the
+    # approver ROLE is fixed here (never model-chosen), and the person holding
+    # that role is resolved from the live Org Chart at runtime.
+    #   - sop_governance  ("which SOP controls X")  -> ESCALATE to the owning
+    #       role (draft=null): no authoritative SOP to cite, so never guess.
+    #   - process_ownership / support_channel       -> DRAFT an internal reply
+    #       PENDING the owning role's approval: the routing source supports an
+    #       answer. The reply body is model-written but is internal-only and is
+    #       never sent without human approval, so audit's draft-vs-escalate
+    #       downgrade does not gate these (the approver IS the reviewer).
+    # ------------------------------------------------------------------
+    if classification.get("is_internal"):
+        gov_domain, gov_role = resolve_governance_approver(email)
+        if gov_domain == "sop_governance":
+            emit(make_escalate_decision(
+                primary_lane="Escalate / Needs Human Review",
+                sop={"id": "SOP-00", "status": "Active", "title": "Master Triage & Routing Policy"},
+                reason=("Internal SOP-governance question — the authoritative controlling SOP must be "
+                        "confirmed by the owning role from the live Org Chart / Unified Routing SOP; "
+                        "the system does not guess."),
+                approver=gov_role,
+                classification_confidence=confidence,
+                internal_note="Governance meta-question routed to the owning role (deterministic).",
+            ))
+            return
+        if gov_domain in ("process_ownership", "support_channel"):
+            gov_sop_obj = sop_source.get_sop("SOP-08")
+            gov_sop = {"id": "SOP-08", "status": "Active",
+                       "title": gov_sop_obj.title if gov_sop_obj else "Support Channel Conflict"}
+            draft_in = {
+                "email": {"from": email.get("from", ""), "subject": email.get("subject", ""),
+                          "body": email.get("body", "")},
+                "sop_content": gov_sop_obj.content if gov_sop_obj else "",
+                "lane": "Escalate / Needs Human Review",
+                "archived_conflict_noted": False,
+                "internal_context": True,
+            }
+            env = call_skill("draft_response", json.dumps(draft_in, ensure_ascii=False), session_tag)
+            gdraft = extract_output(env, ["draft_subject", "draft_body", "approver_role"])
+            gbody = _strip_internal_footer(gdraft.get("draft_body", ""))
+            unc = list(gdraft.get("uncommitted_items", []) or [])
+            # internal_03: the reply is an internal routing answer, but the
+            # underlying CUSTOMER freight issue belongs in the live Gorgias /
+            # Shipping CS workflow — surface that to the approver explicitly.
+            if gov_domain == "support_channel" and not any("gorgias" in u.lower() for u in unc):
+                unc.append("The underlying customer freight-delay issue belongs in the active "
+                           "Gorgias / Shipping CS workflow, not internal Gmail triage.")
+            if len(gbody) < 40:  # draft came back unusable — fall back to escalate
+                emit(make_escalate_decision(
+                    primary_lane="Escalate / Needs Human Review", sop=gov_sop,
+                    reason="Internal governance question could not be drafted; routing to owning role.",
+                    approver=gov_role, classification_confidence=confidence))
+                return
+            emit({
+                "primary_lane": "Escalate / Needs Human Review",
+                "controlling_sop": gov_sop,
+                "sop_conflict": {"detected": False, "archived_sop": None, "resolution": None},
+                "confidence": confidence,
+                "action": "draft_pending_approval",
+                "approval_required": True,
+                "approver_role": gov_role,
+                "escalation_reason": None,
+                "draft": {"to": email.get("from", ""), "subject": gdraft.get("draft_subject", ""),
+                          "body": gbody, "uncommitted_items": unc},
+                "uncommitted_items": unc,
+                "internal_note": gdraft.get("tone_notes", ""),
+                "reasoning": classification.get("reasoning", ""),
+                "schema_errors": schema_errors,
+            })
+            return
 
     # ------------------------------------------------------------------
     # 2) select_sop
@@ -550,6 +695,11 @@ def run_engine(email, sop_source, schema_errors, session_tag, scope_label=None):
     }
     env = call_skill("draft_response", json.dumps(draft_in, ensure_ascii=False), session_tag)
     draft = extract_output(env, ["draft_subject", "draft_body", "approver_role"])
+    # Belt-and-suspenders: strip any internal status/approval footer the model may
+    # still append (e.g. "[DRAFT — pending human approval | lane: … | SOP: … ]").
+    # The skill forbids it, but if a model slips it in we remove it here so a stray
+    # footer can never fail schema validation or leak into a customer draft.
+    draft["draft_body"] = _strip_internal_footer(draft.get("draft_body", ""))
     print(f"[chain] draft_response ({MODELS['draft_response']}) -> approver={draft.get('approver_role')} body_len={len(draft.get('draft_body',''))} uncommitted={len(draft.get('uncommitted_items', []))}", file=sys.stderr)
     errs = validate("draft_response", draft)
     if errs:
@@ -613,6 +763,15 @@ def run_engine(email, sop_source, schema_errors, session_tag, scope_label=None):
     # is drafted directly by the workflow.
     approval_required = True
     draft_action = "draft_pending_approval" if approval_required else "draft"
+    # Internal governance/meta questions get a DETERMINISTIC approver from the
+    # Unified Routing SOP (role holder resolved from the Org Chart at runtime),
+    # overriding the draft model's discretionary pick. Customer drafts keep the
+    # model's choice.
+    approver_role = draft.get("approver_role", "CS Lead")
+    if classification.get("is_internal"):
+        _domain, _gov_role = resolve_governance_approver(email)
+        if _gov_role:
+            approver_role = _gov_role
     emit({
         "primary_lane": lane,
         "controlling_sop": controlling_sop,
@@ -620,7 +779,7 @@ def run_engine(email, sop_source, schema_errors, session_tag, scope_label=None):
         "confidence": confidence,
         "action": draft_action,
         "approval_required": approval_required,
-        "approver_role": draft.get("approver_role", "CS Lead"),
+        "approver_role": approver_role,
         "escalation_reason": None,
         "draft": {
             "to": email.get("from", ""),

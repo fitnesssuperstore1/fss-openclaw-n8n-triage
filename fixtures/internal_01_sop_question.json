@@ -1,16 +1,16 @@
 {
   "case_id": "internal_01",
-  "from": "tim.gardner@frenchfitness.com",
+  "from": "ops.coordinator@frenchfitness.com",
   "to": "team@frenchfitness.com",
   "subject": "[internal] Which SOP controls vendor onboarding right now?",
-  "body": "Hey team,\n\nQuick question on SOP governance \u2014 which SOP do we follow for handling vendor onboarding requests right now? I see SOP-12 and REF-04 both mention it and I want to make sure I'm pointing the new ops hire at the right one.\n\nThanks,\nTim",
+  "body": "Hey team,\n\nQuick question on SOP governance \u2014 which SOP do we follow for handling vendor onboarding requests right now? I see a couple of different docs that both mention it and I want to make sure I'm pointing the new ops hire at the right one.\n\nThanks,\nOps Coordinator",
   "received_at": "2026-06-10T09:15:00Z",
   "expected_outcome": {
     "in_scope": true,
     "scope_label": "internal",
     "primary_lane": "Escalate / Needs Human Review",
     "action": "escalate",
-    "approver_role": "CS Lead",
-    "notes": "Internal SOP-governance question \u2014 no Active SOP for 'which SOP do we use' meta-questions, so the chain should escalate to a human for an authoritative answer. Ops Manager owns SOP governance."
+    "approver_role": "Ops Manager",
+    "notes": "Internal SOP-governance meta-question ('which SOP controls vendor onboarding'). No authoritative controlling SOP exists to cite, so the chain escalates for a human answer. Ops Manager owns SOP governance \u2014 routed deterministically to that ROLE; the current role holder (person) is resolved from the live Org Chart / Unified Routing SOP at runtime, never hardcoded."
   }
 }

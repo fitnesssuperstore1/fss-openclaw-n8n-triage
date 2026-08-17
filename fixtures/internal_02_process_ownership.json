@@ -1,17 +1,17 @@
 {
   "case_id": "internal_02",
-  "from": "arvin.kapoor@frenchfitness.com",
+  "from": "ops.director@frenchfitness.com",
   "to": "leadership@frenchfitness.com",
   "subject": "Process ownership \u2014 Shipping CS Monday board",
-  "body": "Hi all,\n\nWho currently owns the Monday board for shipping CS? I need to update some access permissions and want to make sure I route the request to the right person.\n\nIf there's a process-ownership doc somewhere I missed, point me at it.\n\nThanks,\nArvin",
+  "body": "Hi all,\n\nWho currently owns the Monday board for shipping CS? I need to update some access permissions and want to make sure I route the request to the right person.\n\nIf there's a process-ownership doc somewhere I missed, point me at it.\n\nThanks,\nOps Director",
   "received_at": "2026-06-10T09:30:00Z",
   "expected_outcome": {
     "in_scope": true,
     "scope_label": "leadership",
     "primary_lane": "Escalate / Needs Human Review",
     "action": "draft_pending_approval",
-    "approver_role": "CS Lead",
+    "approver_role": "Ops Manager",
     "controlling_sop": "SOP-08",
-    "notes": "Meta/governance question \u2014 classify_email Rule 2 catches it and routes to Escalate / Needs Human Review (not Shipping CS even though body mentions 'Shipping CS'). select_sop matches SOP-08 (Support Channel Conflict) and authorises drafting an internal reply that punts to CS Lead with uncommitted_items rather than dead-ending in pure escalate. CS Lead approves the draft before send."
+    "notes": "Internal process-ownership question ('who owns the Shipping CS Monday board'). The live Org Chart / Unified Routing SOP supports an answer, so the chain drafts an internal reply pending Ops Manager approval (Ops Manager owns process governance). Role is deterministic; the current role holder (person) is resolved from the Org Chart at runtime, never hardcoded."
   }
 }
