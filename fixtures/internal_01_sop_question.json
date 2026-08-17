@@ -10,7 +10,7 @@
     "scope_label": "internal",
     "primary_lane": "Escalate / Needs Human Review",
     "action": "escalate",
-    "approver_role": "Ops Manager",
-    "notes": "Internal SOP-governance meta-question ('which SOP controls vendor onboarding'). No authoritative controlling SOP exists to cite, so the chain escalates for a human answer. Ops Manager owns SOP governance \u2014 routed deterministically to that ROLE; the current role holder (person) is resolved from the live Org Chart / Unified Routing SOP at runtime, never hardcoded."
+    "approver_role": "Owner",
+    "notes": "Internal SOP-governance meta-question ('which SOP controls vendor onboarding'). Per the M1 mock Unified Routing SOP (REF-03), sop_governance currently routes to the OWNER for authoritative escalation because SOP document control is temporarily unassigned. Escalates with draft=null. Role only; the person is kept out of code/fixtures and the holder is looked up in the mock Org Chart (REF-04) at runtime."
   }
 }
