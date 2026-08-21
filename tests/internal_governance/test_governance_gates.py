@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Focused, deterministic tests for the internal-governance routing path.
 
-Proves the behaviours Arvin's review (item 5) asked for, WITHOUT depending on a
-live model: the four skill calls are stubbed, so every assertion is on the
-chain's own deterministic logic (source resolution, fail-closed escalation, the
-strict schema + audit gate, and draft-body content).
+Every source used here is the EXACT repository document — sops/active/SOP-08,
+sops/reference/REF-03, sops/reference/REF-04 are read from disk, never a
+substitute or an expanded string. Tests that need a broken source derive it from
+the real one (delete it, flip its status, blank it, or duplicate/conflict it).
+
+The four skill calls are stubbed so every assertion is on the chain's own
+deterministic logic: source resolution, fail-closed escalation, the strict
+validated audit gate, and draft-body grounding. No model, no API credits.
 
   python3 tests/internal_governance/test_governance_gates.py
 
 Exit 0 = all passed, 1 = a failure.
 """
-import io, json, os, pathlib, sys
+import copy, io, json, pathlib, re, sys
 from contextlib import redirect_stdout, redirect_stderr
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -20,31 +24,50 @@ spec = importlib.util.spec_from_file_location("tc", ROOT / "bin" / "triage-chain
 tc = importlib.util.module_from_spec(spec); spec.loader.exec_module(tc)
 from sop_source import InMemorySopSource
 
-# --- mock source packets (labelled MOCK / TEST ONLY, same shape as REF-03/04) ---
-ROUTING = """- sop_governance: Owner
-- process_ownership: Ops Manager
-- support_channel: CS Lead
-"""
-ORG = """| Owner | owner@frenchfitness.com |
-| Ops Manager | ops-manager@frenchfitness.com |
-| CS Lead | cs-lead@frenchfitness.com |
-"""
-SOP08 = "SOP-08 Support Channel Conflict: internal triage owns governance questions; " \
-        "customer support issues belong to the active Gorgias / Shipping CS workflow."
-
-
-def make_source(routing=ROUTING, org=ORG, sop08=SOP08, sop08_status="Active"):
+# ---------------------------------------------------------------------------
+# THE REAL REPOSITORY SOURCE PACKET (identical to what the runner builds)
+# ---------------------------------------------------------------------------
+def repo_packet():
     docs = []
-    if routing is not None:
-        docs.append({"id": "REF-03", "name": "REF-03_Unified_Routing_SOP.md",
-                     "status": "Reference", "content": routing})
-    if org is not None:
-        docs.append({"id": "REF-04", "name": "REF-04_Org_Chart.md",
-                     "status": "Reference", "content": org})
-    if sop08 is not None:
-        docs.append({"id": "SOP-08", "name": "SOP-08_Support_Channel_Conflict.md",
-                     "status": sop08_status, "content": sop08})
-    return InMemorySopSource(docs)
+    for sub, status in [("sops/active", "Active"), ("sops/reference", "Reference"),
+                        ("sops/archived", "Archived")]:
+        d = ROOT / sub
+        if not d.exists():
+            continue
+        for f in sorted(d.glob("*.md")):
+            m = re.match(r"^((?:SOP|REF|ARCH)-\d{2})", f.name)
+            docs.append({"id": m.group(1) if m else None, "name": f.name,
+                         "status": status, "content": f.read_text()})
+    return docs
+
+REPO_DOCS = repo_packet()
+SOP08_TEXT = next(d["content"] for d in REPO_DOCS if d["id"] == "SOP-08")
+
+
+def source(docs=None):
+    return InMemorySopSource(copy.deepcopy(docs if docs is not None else REPO_DOCS))
+
+
+def without(doc_id):
+    return [d for d in copy.deepcopy(REPO_DOCS) if d["id"] != doc_id]
+
+
+def mutate(doc_id, **changes):
+    docs = copy.deepcopy(REPO_DOCS)
+    for d in docs:
+        if d["id"] == doc_id:
+            d.update(changes)
+    return docs
+
+
+def duplicate(doc_id, **changes):
+    """Add a SECOND document with the same id (duplicate / conflicting source)."""
+    docs = copy.deepcopy(REPO_DOCS)
+    orig = next(d for d in docs if d["id"] == doc_id)
+    dup = copy.deepcopy(orig)
+    dup.update(changes)
+    docs.append(dup)
+    return docs
 
 
 def classify_out(lane="Escalate / Needs Human Review"):
@@ -63,9 +86,16 @@ AUDIT_PASS = {"pass": True, "violations": [], "force_escalate": False,
               "escalation_reason": None, "notify_role": None}
 AUDIT_FAIL = {"pass": False, "violations": ["draft promises a refund"], "force_escalate": True,
               "escalation_reason": "draft makes an unsupported promise", "notify_role": "CS Lead"}
+AUDIT_MALFORMED = {"pass": "yes", "force_escalate": "no"}                 # wrong types
+AUDIT_EMPTY = {"pass": None, "force_escalate": None}                       # missing/empty
+AUDIT_CONTRADICTORY = {"pass": True, "violations": ["found a promise"], "force_escalate": True,
+                       "escalation_reason": None, "notify_role": None}     # fields disagree
+AUDIT_NONKEYWORD = {"pass": False, "violations": ["tone is inappropriate for the audience"],
+                    "force_escalate": True, "escalation_reason": "tone unsuitable",
+                    "notify_role": "CS Lead"}                              # rejection w/o keyword
 
 
-def run(email, source, draft=None, audit=AUDIT_PASS, capture=None):
+def run(email, src, draft=None, audit=AUDIT_PASS, capture=None, audit_raises=False):
     """Run run_engine with stubbed skills; return the emitted decision dict."""
     def fake_call_skill(skill_name, payload, tag):
         if capture is not None:
@@ -75,6 +105,8 @@ def run(email, source, draft=None, audit=AUDIT_PASS, capture=None):
         if skill_name == "draft_response":
             return draft
         if skill_name == "audit_check":
+            if audit_raises:
+                raise RuntimeError("audit_check unreachable")
             return audit
         raise AssertionError("unexpected skill: " + skill_name)
 
@@ -83,7 +115,7 @@ def run(email, source, draft=None, audit=AUDIT_PASS, capture=None):
     buf = io.StringIO()
     try:
         with redirect_stdout(buf), redirect_stderr(io.StringIO()):
-            tc.run_engine(email, source, [], "test", scope_label="internal")
+            tc.run_engine(email, src, [], "test", scope_label="internal")
     finally:
         tc.call_skill = orig
     out = buf.getvalue().strip()
@@ -99,84 +131,168 @@ SOPQ = {"from": "ops.coordinator@frenchfitness.com", "to": "team@frenchfitness.c
         "subject": "Which SOP controls onboarding",
         "body": "Which SOP do we follow for vendor onboarding governance right now?"}
 
+# A neutral holding reply: acknowledges, promises nothing, claims no owner/channel.
+NEUTRAL = ("Hi,\n\nThanks for flagging this. I don't have a confirmed answer to give you yet, so I'm "
+           "routing your question to the right reviewer and will follow up once they confirm.\n\n"
+           "Thanks,\nOperations")
+
 results = []
 def check(name, cond, detail=""):
     results.append((name, bool(cond), detail))
 
 
-# 5a — internal_02 draft is SOURCE-GROUNDED (SOP-08 content fed to draft_response)
+# ===========================================================================
+# A. GROUNDING against the REAL repository sources
+# ===========================================================================
+# A1 — the real SOP-08 is what gets handed to the drafting model (byte-identical)
 cap = {}
-d = run(PROC, make_source(), draft=draft_out(
-    "Hi,\n\nThe Shipping CS Monday board sits under our operations function; I'll confirm the "
-    "current owner and follow up shortly.\n\nThanks,\nOperations"), capture=cap)
-grounded = bool(cap.get("draft_response")) and SOP08[:20] in (cap["draft_response"][0].get("sop_content") or "")
-check("5a process_ownership draft is grounded in SOP-08 source",
-      d.get("action") == "draft_pending_approval" and grounded, str(d.get("action")))
+d = run(PROC, source(), draft=draft_out(NEUTRAL), capture=cap)
+handed = (cap.get("draft_response") or [{}])[0].get("sop_content", "")
+check("A1 drafting model receives the EXACT repository SOP-08",
+      handed == SOP08_TEXT and d.get("action") == "draft_pending_approval",
+      f"identical={handed == SOP08_TEXT} action={d.get('action')}")
 
-# 5b — internal_03 states the Gorgias/Shipping CS routing in the DRAFT BODY
-d = run(SUPP, make_source(), draft=draft_out(
-    "Hi,\n\nThanks for flagging the routing — I'll confirm and get back to you on the internal side.\n\n"
-    "Thanks,\nCS"))
+# A2 — the real SOP-08 genuinely does NOT name a board owner (guards the tests themselves)
+check("A2 repository SOP-08 does not identify the Shipping CS board owner",
+      not re.search(r"(?i)monday board.*(owner|owned by)|board owner", SOP08_TEXT))
+
+# A3 — NEGATIVE: an unsupported OWNERSHIP answer cannot become a draft
+d = run(PROC, source(), draft=draft_out(
+    "Hi,\n\nThe Shipping CS Monday board is owned by the Logistics Desk; contact them for access.\n\nThanks"))
+check("A3 unsupported ownership claim -> escalate, draft=null",
+      d.get("action") == "escalate" and d.get("draft") is None,
+      str(d.get("escalation_reason"))[:60])
+
+# A4 — NEGATIVE: an unsupported CHANNEL-ROUTING answer cannot become a draft
+d = run(SUPP, source(), draft=draft_out(
+    "Hi,\n\nThat freight delay belongs in the Gorgias / Shipping CS workflow, not internal triage.\n\nThanks"))
+check("A4 unsupported channel-routing claim -> escalate, draft=null",
+      d.get("action") == "escalate" and d.get("draft") is None,
+      str(d.get("escalation_reason"))[:60])
+
+# A5 — a NEUTRAL holding reply (no ownership/channel claim) is allowed to draft
+d = run(PROC, source(), draft=draft_out(NEUTRAL))
 body = (d.get("draft") or {}).get("body", "")
-check("5b support_channel BODY names Gorgias / Shipping CS",
-      d.get("action") == "draft_pending_approval" and "gorgias" in body.lower()
-      and "shipping cs" in body.lower(), body[-70:])
+check("A5 neutral holding reply (no claim) -> draft_pending_approval / Ops Manager",
+      d.get("action") == "draft_pending_approval" and d.get("approver_role") == "Ops Manager"
+      and not tc._OWNERSHIP_CLAIM_RX.search(body), str(d.get("action")))
 
-# 5c — missing REF-03 / REF-04 / SOP-08 (and non-Active SOP-08) -> escalate, draft=null
-for label, src in [
-    ("missing REF-03", make_source(routing=None)),
-    ("missing REF-04", make_source(org=None)),
-    ("missing SOP-08", make_source(sop08=None)),
-    ("non-Active SOP-08", make_source(sop08_status="Reference")),
+# A6 — the engine never appends a business conclusion the source doesn't state
+d = run(SUPP, source(), draft=draft_out(NEUTRAL))
+body = (d.get("draft") or {}).get("body", "")
+unc = " ".join(d.get("uncommitted_items") or [])
+check("A6 engine does not append a Gorgias/Shipping-CS conclusion to body or items",
+      "gorgias" not in body.lower() and "gorgias" not in unc.lower(),
+      (body[-40:] + " | " + unc[:40]))
+
+# ===========================================================================
+# B. STRICT, VALIDATED, FAIL-CLOSED AUDIT GATE
+# ===========================================================================
+for label, kwargs in [
+    ("malformed audit output (wrong types)", {"audit": AUDIT_MALFORMED}),
+    ("empty audit output (missing fields)", {"audit": AUDIT_EMPTY}),
+    ("contradictory audit fields", {"audit": AUDIT_CONTRADICTORY}),
+    ("non-keyword audit rejection", {"audit": AUDIT_NONKEYWORD}),
+    ("keyword audit rejection", {"audit": AUDIT_FAIL}),
+    ("audit_check unreachable", {"audit_raises": True}),
 ]:
-    d = run(PROC, src, draft=draft_out("Hi, some internal reply that is plenty long enough here."))
-    check(f"5c {label} -> escalate + draft=null",
+    d = run(PROC, source(), draft=draft_out(NEUTRAL), **kwargs)
+    check(f"B {label} -> escalate, draft=null",
           d.get("action") == "escalate" and d.get("draft") is None, str(d.get("action")))
 
-# 5d — ambiguous role holder (two Ops Manager mailboxes) -> escalate, not first-match
-amb_org = ORG + "| Ops Manager | ops-manager-2@frenchfitness.com |\n"
-d = run(PROC, make_source(org=amb_org), draft=draft_out("Hi, internal reply long enough to pass."))
-check("5d ambiguous holder -> escalate (not first email)",
-      d.get("action") == "escalate" and d.get("draft") is None
-      and "ambiguous" in (d.get("escalation_reason") or "").lower(), d.get("escalation_reason", "")[:60])
-
-# 5e/5f — the strict SCHEMA gate fires: a draft citing an SOP id (mid-body) is rejected
-d = run(PROC, make_source(), draft=draft_out(
-    "Hi,\n\nPer SOP-08 the board is owned by operations; I'll confirm the owner shortly.\n\nThanks"))
-check("5f schema gate fires on internal-metadata (SOP id) -> escalate",
+# B7 — the deterministic auditor blocks a promise even if the model audit passes
+d = run(PROC, source(), draft=draft_out(
+    "Hi,\n\nWe will refund you $500 today and replace the unit this week.\n\nThanks"), audit=AUDIT_PASS)
+check("B7 no-promise violation blocked even when model audit says pass",
       d.get("action") == "escalate" and d.get("draft") is None, str(d.get("action")))
 
-# 5e — a trailing internal footer is stripped, never reaches the final draft
-d = run(PROC, make_source(), draft=draft_out(
-    "Hi,\n\nThe board is owned by operations; I'll confirm the current owner and follow up.\n\nThanks,\nOps"
-    "\n\n[DRAFT — pending human approval | lane: Escalate / Needs Human Review | SOP: SOP-08 (Active)]"))
+# B8 — internal metadata (SOP id) blocked by the schema/auditor
+d = run(PROC, source(), draft=draft_out(
+    "Hi,\n\nPer SOP-08 I'll route this to the right reviewer and follow up shortly.\n\nThanks"))
+check("B8 internal metadata (SOP id) -> escalate, draft=null",
+      d.get("action") == "escalate" and d.get("draft") is None, str(d.get("action")))
+
+# B9 — a trailing internal footer is stripped and never reaches the final draft
+d = run(PROC, source(), draft=draft_out(
+    NEUTRAL + "\n\n[DRAFT — pending human approval | lane: Escalate / Needs Human Review | SOP: SOP-08 (Active)]"))
 fb = (d.get("draft") or {}).get("body", "")
-check("5e internal footer stripped from final draft",
-      d.get("action") == "draft_pending_approval" and "[DRAFT" not in fb and "SOP-08" not in fb, fb[-50:])
+check("B9 internal footer stripped from the final draft",
+      d.get("action") == "draft_pending_approval" and "[DRAFT" not in fb and "SOP-08" not in fb,
+      fb[-40:])
 
-# 5e/5f — the AUDIT/no-promise gate fires: audit force_escalate -> escalate, draft=null
-d = run(PROC, make_source(),
-        draft=draft_out("Hi,\n\nWe will refund you $500 today and replace the unit.\n\nThanks"),
-        audit=AUDIT_FAIL)
-check("5f audit/no-promise gate fires -> escalate + draft=null",
+# ===========================================================================
+# C. MISSING / NON-ACTIVE / EMPTY sources -> fail closed
+# ===========================================================================
+for label, docs in [
+    ("REF-03 missing", without("REF-03")),
+    ("REF-04 missing", without("REF-04")),
+    ("SOP-08 missing", without("SOP-08")),
+    ("SOP-08 non-Active", mutate("SOP-08", status="Reference")),
+    ("SOP-08 empty content", mutate("SOP-08", content="   ")),
+]:
+    d = run(PROC, source(docs), draft=draft_out(NEUTRAL))
+    check(f"C {label} -> escalate, draft=null",
+          d.get("action") == "escalate" and d.get("draft") is None, str(d.get("action")))
+
+# ===========================================================================
+# D. DUPLICATE / CONFLICTING sources -> fail closed
+# ===========================================================================
+# D1 — duplicate REF-03 whose mapping CONFLICTS (process_ownership -> CS Lead)
+conflict_routing = SOP08_TEXT  # placeholder replaced below
+dup_ref03 = duplicate("REF-03", name="REF-03_Unified_Routing_SOP_COPY.md",
+                      content="- process_ownership: CS Lead\n- support_channel: Ops Manager\n")
+d = run(PROC, source(dup_ref03), draft=draft_out(NEUTRAL))
+check("D1 conflicting duplicate REF-03 mapping -> escalate, draft=null",
       d.get("action") == "escalate" and d.get("draft") is None, str(d.get("action")))
 
-# happy paths — correct action + role derived from the mock routing source
-d = run(PROC, make_source(), draft=draft_out("Hi,\n\nThe board sits with operations; confirming the owner now.\n\nThanks"))
-check("process_ownership -> draft_pending_approval / Ops Manager",
-      d.get("action") == "draft_pending_approval" and d.get("approver_role") == "Ops Manager", str(d.get("approver_role")))
-d = run(SOPQ, make_source(), draft=draft_out("unused"))
-check("sop_governance -> escalate / Owner (draft=null)",
+# D2 — duplicate REF-03 that AGREES is not a conflict (must still work)
+dup_ref03_same = duplicate("REF-03", name="REF-03_Unified_Routing_SOP_COPY.md")
+d = run(PROC, source(dup_ref03_same), draft=draft_out(NEUTRAL))
+check("D2 duplicate-but-identical REF-03 still resolves -> draft_pending_approval",
+      d.get("action") == "draft_pending_approval", str(d.get("action")))
+
+# D3 — duplicate REF-04 with a CONFLICTING holder for the same role
+dup_ref04 = duplicate("REF-04", name="REF-04_Org_Chart_COPY.md",
+                      content="| Ops Manager | someone-else@frenchfitness.com |\n")
+d = run(PROC, source(dup_ref04), draft=draft_out(NEUTRAL))
+check("D3 conflicting duplicate REF-04 holder -> escalate, draft=null",
+      d.get("action") == "escalate" and d.get("draft") is None, str(d.get("action")))
+
+# D4 — ambiguous holder rows inside ONE REF-04 (two mailboxes for a role)
+amb = mutate("REF-04", content=next(d2["content"] for d2 in REPO_DOCS if d2["id"] == "REF-04")
+             + "\n| Ops Manager | ops-manager-2@frenchfitness.com |\n")
+d = run(PROC, source(amb), draft=draft_out(NEUTRAL))
+check("D4 ambiguous holder rows -> escalate (never first-match)",
+      d.get("action") == "escalate" and d.get("draft") is None
+      and "ambiguous" in (d.get("escalation_reason") or "").lower(),
+      str(d.get("escalation_reason"))[:60])
+
+# D5 — duplicate SOP-08 with CONFLICTING content
+dup_sop = duplicate("SOP-08", name="SOP-08_Support_Channel_Conflict_COPY.md",
+                    content="Channel disagreement is auto-resolved by the system; no escalation needed.")
+d = run(SUPP, source(dup_sop), draft=draft_out(NEUTRAL))
+check("D5 conflicting duplicate SOP-08 -> escalate, draft=null",
+      d.get("action") == "escalate" and d.get("draft") is None, str(d.get("action")))
+
+# ===========================================================================
+# E. HAPPY PATHS — role derived from the real mock routing packet
+# ===========================================================================
+d = run(SOPQ, source(), draft=draft_out("unused"))
+check("E1 sop_governance -> escalate / Owner (draft=null)",
       d.get("action") == "escalate" and d.get("approver_role") == "Owner" and d.get("draft") is None,
+      str(d.get("approver_role")))
+d = run(SUPP, source(), draft=draft_out(NEUTRAL))
+check("E2 support_channel -> draft_pending_approval / CS Lead",
+      d.get("action") == "draft_pending_approval" and d.get("approver_role") == "CS Lead",
       str(d.get("approver_role")))
 
 # --- report ---
-print("\nInternal-governance gate tests")
-print("-" * 64)
+print("\nInternal-governance gate tests (against the REAL repository sources)")
+print("-" * 72)
 passed = 0
 for name, ok, detail in results:
     print(f"  {'PASS' if ok else 'FAIL'}  {name}" + (f"   [{detail}]" if not ok and detail else ""))
     passed += ok
-print("-" * 64)
+print("-" * 72)
 print(f"{passed}/{len(results)} passed")
 sys.exit(0 if passed == len(results) else 1)

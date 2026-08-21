@@ -348,11 +348,80 @@ _PROMISE_RX = re.compile(
     r"|\bwe(?:'ll| will)\s+(?:fix|repair|resolve|replace|refund|ship|deliver|update|credit|compensate)\b"
     r"|\b(?:deliver|ship|arrive)\w*\s+(?:on|by|within)\b"
     r"|\bby\s+(?:tomorrow|tonight|today|this week|next week|\d)", re.I)
-_NOPROMISE_HINTS = ("refund", "replace", "warrant", "guarantee", "deliver", "shipping date",
-                    "ship by", "promise", "compensat", "credit", "fault", "liab", "$", "eta")
 
 def draft_makes_promise(body: str) -> bool:
     return bool(body) and bool(_PROMISE_RX.search(body))
+
+
+# Internal drafts must not assert a business conclusion (an owner, or which
+# channel owns an issue) unless the SUPPLIED SOURCE says it. These patterns
+# detect such an assertion in a draft body; the claim is then required to be
+# grounded in the source text, else the draft fails closed.
+_OWNERSHIP_CLAIM_RX = re.compile(
+    r"\b(?:is|are|sits?|belongs?|falls?|reports?)\s+(?:currently\s+)?"
+    r"(?:owned|managed|maintained|handled|with|under|to)\b"
+    r"|\b(?:the\s+)?owner\s+(?:is|of\s+\w+\s+is)\b"
+    r"|\b(?:owned|managed)\s+by\b"
+    r"|\b(?:handled|covered|processed)\s+(?:by|in|through)\b"
+    r"|\bbelongs?\s+in\b", re.I)
+
+
+def audit_internal_governance_draft(draft_body, sop_content, domain):
+    """DETERMINISTIC strict auditor for internal-governance drafts.
+
+    Returns a dict in the audit_check SCHEMA shape (so it is validated by the
+    same schema as the model auditor). Rules enforced:
+      - no unsupported promise (refund/replacement/warranty/date/etc.)
+      - no internal metadata (footer markers, lane names, SOP/REF/ARCH ids)
+      - no business conclusion (ownership / channel routing) that is not
+        grounded in the SUPPLIED source text
+      - a non-trivial body
+    """
+    violations = []
+    body = draft_body or ""
+    if len(body.strip()) < 40:
+        violations.append("draft body is empty or too short to review")
+    if draft_makes_promise(body):
+        violations.append("draft contains an unsupported promise (refund/replacement/warranty/date)")
+    if re.search(r"(?i)\[draft|pending human approval|lane:|\bSOP-\d|\bREF-\d|\bARCH-\d", body):
+        violations.append("draft contains internal metadata (marker, lane name, or SOP id)")
+    m = _OWNERSHIP_CLAIM_RX.search(body)
+    if m:
+        # A conclusion is asserted. It is only allowed when the SENTENCE making
+        # the claim is grounded in the supplied source: the named party/system in
+        # that sentence must literally appear in the source text. Word overlap
+        # elsewhere in the draft does not count.
+        start = body.rfind(".", 0, m.start()) + 1
+        end = body.find(".", m.end())
+        sentence = body[start: end if end != -1 else len(body)]
+        src = (sop_content or "").lower()
+        # Candidate named parties/systems in the claim sentence: capitalised
+        # multi-word names, or known channel/system words.
+        named = re.findall(r"\b(?:[A-Z][\w&/-]+(?:\s+[A-Z][\w&/-]+)*)\b", sentence)
+        named = [n for n in named if n.lower() not in _COMMON_WORDS and len(n) > 2]
+        # The source must ALSO assert the relation itself. Naming a party the
+        # source merely mentions (e.g. SOP-08 names Gorgias as a conflicting
+        # channel to surface) is not grounding for "X belongs to / is owned by Y".
+        source_asserts_relation = bool(re.search(
+            r"(?i)\bbelongs?\s+(?:in|to)\b|\bis\s+owned\s+by\b|\bowner\s+is\b|"
+            r"\bis\s+(?:handled|managed|maintained)\s+by\b|\bresponsible\s+for\b", src))
+        if not named or not any(n.lower() in src for n in named) or not source_asserts_relation:
+            violations.append("draft asserts an ownership/routing conclusion not supported by the supplied source")
+    ok = not violations
+    return {
+        "pass": ok,
+        "violations": violations,
+        "force_escalate": not ok,
+        "escalation_reason": None if ok else violations[0],
+        "notify_role": None if ok else "CS Lead",
+    }
+
+_COMMON_WORDS = {
+    "this", "that", "there", "their", "with", "from", "your", "will", "have", "been", "they",
+    "team", "please", "thanks", "team's", "which", "about", "into", "under", "over", "when",
+    "what", "where", "while", "would", "could", "should", "review", "human", "reply", "email",
+    "gmail", "issue", "customer", "internal", "handled", "owner", "owned", "belongs", "routing",
+}
 
 
 # Keyword -> internal-governance DOMAIN. Domain detection only (which kind of
@@ -382,14 +451,29 @@ def detect_governance_domain(email: dict):
     return None
 
 
-def _find_mock_doc(sop_source, *needles):
+def _find_mock_docs(sop_source, *needles):
+    """All documents matching a source role (by filename/title or id)."""
     if sop_source is None:
-        return None
+        return []
+    out = []
     for s in sop_source.list_sops():
         name = ((s.get("name") or "") + " " + (s.title or "")).lower()
         if any(n in name for n in needles):
-            return s
-    return None
+            out.append(s)
+    return out
+
+
+def _find_mock_doc(sop_source, *needles):
+    """The single document for a source role, or None if absent OR if multiple
+    copies exist whose CONTENT conflicts (duplicate/conflicting source -> the
+    caller fails closed). Identical duplicates are not a conflict.
+    """
+    docs = _find_mock_docs(sop_source, *needles)
+    if not docs:
+        return None
+    if len({(d.content or "").strip() for d in docs}) > 1:
+        return None  # conflicting duplicates
+    return docs[0]
 
 
 def load_routing_map(sop_source):
@@ -644,6 +728,14 @@ def run_engine(email, sop_source, schema_errors, session_tag, scope_label=None):
 
             # process_ownership / support_channel: draft grounded in the controlling
             # source (SOP-08). (item 3) fail closed if missing / non-Active / empty.
+            # Duplicate/conflicting copies of the controlling SOP -> fail closed
+            # (never silently take the first match).
+            sop08_copies = [s for s in sop_source.list_sops() if s.id == "SOP-08"]
+            if len({(s.content or "").strip() for s in sop08_copies}) > 1:
+                _gov_escalate("Controlling source SOP-08 has conflicting duplicate copies; cannot "
+                              "determine the controlling text.", gov_role,
+                              sop={"id": "SOP-08", "status": None, "title": "Support Channel Conflict"})
+                return
             gov_sop_obj = sop_source.get_sop("SOP-08")
             if (gov_sop_obj is None
                     or (gov_sop_obj.status or "").strip().lower() != "active"
@@ -669,13 +761,12 @@ def run_engine(email, sop_source, schema_errors, session_tag, scope_label=None):
             gdraft["draft_body"] = _strip_internal_footer(gdraft.get("draft_body", ""))
             gdraft["approver_role"] = gov_role  # deterministic role from the routing source
 
-            # (item 5b) internal_03: the DRAFT BODY itself must state that the
-            # underlying customer freight-delay issue belongs in the active
-            # Gorgias / Shipping CS workflow (not only in uncommitted_items).
-            if gov_domain == "support_channel" and "gorgias" not in gdraft["draft_body"].lower():
-                gdraft["draft_body"] = gdraft["draft_body"].rstrip() + (
-                    "\n\nOn the underlying customer freight-delay itself: that belongs in our active "
-                    "Gorgias / Shipping CS workflow, not internal Gmail triage — please route it there.")
+            # NOTE: the engine never appends a business conclusion to a draft.
+            # A previous revision added a "belongs in Gorgias / Shipping CS"
+            # sentence when the model omitted it — that asserted a conclusion the
+            # supplied source does not state. Removed: whatever the draft claims
+            # must come from the model grounded in the supplied source, and the
+            # deterministic auditor below rejects any ungrounded claim.
 
             # (item 2) the internal draft goes through the SAME strict draft schema
             # validation as any customer draft.
@@ -714,29 +805,62 @@ def run_engine(email, sop_source, schema_errors, session_tag, scope_label=None):
                     "uncommitted_items": list(gdraft.get("uncommitted_items", []) or []),
                 },
             }
-            aenv = call_skill("audit_check", json.dumps(audit_in, ensure_ascii=False), session_tag)
-            audit = extract_output(aenv, ["pass", "force_escalate"])
-            print(f"[chain] audit_check ({MODELS['audit_check']}) [internal-gov] -> {json.dumps(audit)}", file=sys.stderr)
-            # Block ONLY on a genuine no-promise/content violation. The routing,
-            # approver, and schema consistency the audit model also grades are
-            # already guaranteed deterministically above, and the model applies
-            # its customer-lane heuristics to them non-deterministically — so we
-            # ignore those and gate on the content check: the deterministic body
-            # scan, plus any audit violation that names a no-promise concern.
-            audit_text = (" ".join(audit.get("violations", []) or [])
-                          + " " + (audit.get("escalation_reason") or "")).lower()
-            audit_content_violation = audit.get("force_escalate") and any(h in audit_text for h in _NOPROMISE_HINTS)
-            if draft_makes_promise(gdraft["draft_body"]) or audit_content_violation:
-                _gov_escalate("Internal draft rejected by no-promise check: "
-                              + (audit.get("escalation_reason") or "; ".join(audit.get("violations", []))
-                                 or "draft contains an unsupported promise"),
-                              gov_role, sop=gov_sop)
+            # STRICT, VALIDATED, FAIL-CLOSED audit gate (two auditors, both
+            # schema-validated; either one rejecting escalates with draft=null).
+            #
+            # 1) Deterministic internal-governance auditor — the authoritative
+            #    gate for this branch. Enforces no-promise, no internal metadata,
+            #    and source-grounding of any ownership/routing conclusion.
+            # 2) The audit_check MODEL — run for defense-in-depth. Its result is
+            #    validated against the audit schema and checked for internal
+            #    contradiction; a malformed, empty, or contradictory result fails
+            #    CLOSED (it is never ignored, and never treated as a pass).
+            def _audit_reject(source, res):
+                reason = (res or {}).get("escalation_reason") \
+                    or "; ".join((res or {}).get("violations", []) or []) \
+                    or "audit produced no usable result"
+                _gov_escalate(f"Internal draft rejected by {source}: {reason}", gov_role, sop=gov_sop)
+
+            det_audit = audit_internal_governance_draft(
+                gdraft["draft_body"], gov_sop_obj.content, gov_domain)
+            det_errs = validate("audit_check", det_audit)
+            print(f"[chain] audit_internal_governance [deterministic] -> {json.dumps(det_audit)}", file=sys.stderr)
+            if det_errs or det_audit.get("pass") is not True or det_audit.get("force_escalate") is not False:
+                _audit_reject("the internal-governance audit"
+                              + (f" (schema error: {det_errs[0]})" if det_errs else ""), det_audit)
                 return
 
+            audit = None
+            try:
+                aenv = call_skill("audit_check", json.dumps(audit_in, ensure_ascii=False), session_tag)
+                audit = extract_output(aenv, ["pass", "force_escalate"])
+            except Exception as exc:  # unreachable/malformed auditor -> fail closed
+                print(f"[chain] audit_check [internal-gov] FAILED: {exc}", file=sys.stderr)
+                _gov_escalate("Internal draft could not be audited (audit_check unavailable or "
+                              "returned no usable result); failing closed.", gov_role, sop=gov_sop)
+                return
+            print(f"[chain] audit_check ({MODELS['audit_check']}) [internal-gov] -> {json.dumps(audit)}", file=sys.stderr)
+            audit_errs = validate("audit_check", audit)
+            # Schema-valid AND internally consistent: the skill contract says
+            # pass == true <=> force_escalate == false <=> violations == [].
+            contradictory = (bool(audit.get("violations")) != (audit.get("force_escalate") is True)
+                             or (audit.get("pass") is True) == (audit.get("force_escalate") is True))
+            if audit_errs or contradictory \
+                    or audit.get("pass") is not True or audit.get("force_escalate") is not False:
+                why = ("schema error: " + audit_errs[0]) if audit_errs else (
+                    "contradictory audit fields" if contradictory else None)
+                _audit_reject("audit_check" + (f" ({why})" if why else ""), audit)
+                return
+
+            # uncommitted_items carry only what the SUPPLIED source supports. For a
+            # support-channel question SOP-08 (Active) states that channel
+            # disagreement escalates to a human who reconciles the channels — so
+            # we flag that the routing answer is unconfirmed, WITHOUT asserting
+            # which channel owns the underlying issue (the source does not say).
             unc = list(gdraft.get("uncommitted_items", []) or [])
-            if gov_domain == "support_channel" and not any("gorgias" in u.lower() for u in unc):
-                unc.append("The underlying customer freight-delay issue belongs in the active "
-                           "Gorgias / Shipping CS workflow, not internal Gmail triage.")
+            if gov_domain == "support_channel" and not any("reconcil" in u.lower() for u in unc):
+                unc.append("Channel ownership is not confirmed by the supplied Active source; per SOP-08 a "
+                           "human reconciles the channels before the routing answer is given.")
             emit({
                 "primary_lane": "Escalate / Needs Human Review",
                 "controlling_sop": gov_sop,

@@ -12,6 +12,6 @@
     "action": "draft_pending_approval",
     "approver_role": "Ops Manager",
     "controlling_sop": "SOP-08",
-    "notes": "Internal process-ownership question ('who owns the Shipping CS Monday board'). The live Org Chart / Unified Routing SOP supports an answer, so the chain drafts an internal reply pending Ops Manager approval (Ops Manager owns process governance). Role is deterministic; the current role holder (person) is resolved from the Org Chart at runtime, never hardcoded."
+    "notes": "Internal process-ownership question. The supplied Active source (SOP-08) does NOT identify the board owner, so the engine may NOT claim one: it drafts a NEUTRAL holding reply making no ownership claim, pending Ops Manager approval (role derived from the M1 mock routing packet REF-03; holder looked up in the mock Org Chart REF-04). Any draft asserting an unsupported owner is rejected by the deterministic internal-governance audit and escalates with draft=null."
   }
 }

@@ -12,6 +12,6 @@
     "action": "draft_pending_approval",
     "approver_role": "CS Lead",
     "controlling_sop": "SOP-08",
-    "notes": "Internal support-channel routing question ('does this go through internal Gmail triage or is it fully Gorgias-owned'). Drafts an internal reply pending CS Lead approval (CS Lead owns support-channel routing). The decision explicitly recognizes the underlying customer freight-delay issue belongs in the active Gorgias / Shipping CS workflow (surfaced in uncommitted_items). Role deterministic; holder resolved from the Org Chart at runtime."
+    "notes": "Internal support-channel routing question. SOP-08 (Active) states that conflicting channels are surfaced to a human who reconciles them \u2014 it does NOT assert that the issue belongs to Gorgias / Shipping CS, so the engine never asserts that either (the previous code-append was removed). Drafts a neutral holding reply pending CS Lead approval, flagging that channel ownership is unconfirmed pending human reconciliation per SOP-08."
   }
 }
