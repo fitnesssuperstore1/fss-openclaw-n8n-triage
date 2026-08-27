@@ -286,6 +286,96 @@ check("E2 support_channel -> draft_pending_approval / CS Lead",
       d.get("action") == "draft_pending_approval" and d.get("approver_role") == "CS Lead",
       str(d.get("approver_role")))
 
+# ===========================================================================
+# F. UNSUPPORTED IMPERATIVE ROUTING DIRECTIVES  (adversarial finding 1)
+#    A draft may not instruct where the work goes unless the destination is
+#    source-authorised. Neutral holding replies stay allowed.
+# ===========================================================================
+UNSUPPORTED_DIRECTIVES = [
+    "Please route this to the Logistics Desk.",
+    "Send it to the Shipping CS team.",
+    "Forward this to the Warehouse Supervisor.",
+    "Open a ticket in Gorgias for this.",
+    "Please escalate this to the Fulfilment Manager.",
+    "Log it in the Freight Portal.",
+    "Reassign this to the Returns Desk.",
+    "Create a task in Monday for the Logistics Desk.",
+]
+for phrase in UNSUPPORTED_DIRECTIVES:
+    d = run(PROC, source(), draft=draft_out(
+        "Hi,\n\nThanks for checking on this. " + phrase + " Someone will confirm shortly.\n\nThanks"))
+    check(f"F unsupported directive -> escalate: {phrase[:38]}",
+          d.get("action") == "escalate" and d.get("draft") is None, str(d.get("action")))
+
+# F-compound — several directives, one of them unsupported: whole draft fails closed
+d = run(PROC, source(), draft=draft_out(
+    "Hi,\n\nThanks for flagging. I'm routing this for human review, and please also open a ticket in "
+    "Gorgias and forward it to the Logistics Desk so they can pick it up.\n\nThanks"))
+check("F compound directive (one unsupported) -> escalate, draft=null",
+      d.get("action") == "escalate" and d.get("draft") is None, str(d.get("action")))
+
+# F-neutral — a neutral holding reply naming no destination still drafts
+d = run(PROC, source(), draft=draft_out(NEUTRAL))
+check("F neutral holding reply still allowed -> draft_pending_approval",
+      d.get("action") == "draft_pending_approval", str(d.get("action")))
+
+# F-authorised — routing to the approver role the routing source itself selected
+d = run(SUPP, source(), draft=draft_out(
+    "Hi,\n\nThanks for flagging this. I'm sending it to the CS Lead to review both sides before "
+    "anyone replies to the customer.\n\nThanks"))
+check("F routing to the source-authorised approver role still allowed",
+      d.get("action") == "draft_pending_approval" and d.get("approver_role") == "CS Lead",
+      str(d.get("action")))
+
+# ===========================================================================
+# G. SAME-ID SOURCE CONFLICTS  (adversarial finding 2)
+#    Identity is the canonical document ID — a conflicting copy cannot hide
+#    behind a different filename or title.
+# ===========================================================================
+for label, doc_id, changes in [
+    ("REF-03 same id, different filename+content", "REF-03",
+     dict(name="routing-v2-final.md", title="Routing v2", content="- process_ownership: CS Lead\n")),
+    ("REF-04 same id, different filename+content", "REF-04",
+     dict(name="people-directory.md", title="People", content="| Ops Manager | someone-else@frenchfitness.com |\n")),
+    ("SOP-08 same id, different filename+content", "SOP-08",
+     dict(name="support-policy-old.md", title="Support Policy",
+          content="Channel disagreement is auto-resolved; no escalation needed.")),
+]:
+    d = run(PROC if doc_id != "SOP-08" else SUPP, source(duplicate(doc_id, **changes)),
+            draft=draft_out(NEUTRAL))
+    check(f"G {label} -> escalate, draft=null",
+          d.get("action") == "escalate" and d.get("draft") is None, str(d.get("action")))
+
+# G-identical — same id, different filename, IDENTICAL content is not a conflict
+same = duplicate("REF-03", name="unified-routing-copy.md", title="Routing copy")
+d = run(PROC, source(same), draft=draft_out(NEUTRAL))
+check("G same id + different filename but identical content still resolves",
+      d.get("action") == "draft_pending_approval", str(d.get("action")))
+
+# ===========================================================================
+# H. CONFLICTING MAPPINGS INSIDE ONE REF-03  (adversarial finding 3)
+# ===========================================================================
+ref03_text = next(x["content"] for x in REPO_DOCS if x["id"] == "REF-03")
+d = run(PROC, source(mutate("REF-03", content=ref03_text + "\n- process_ownership: CS Lead\n")),
+        draft=draft_out(NEUTRAL))
+check("H same domain mapped to two roles in one REF-03 -> escalate, draft=null",
+      d.get("action") == "escalate" and d.get("draft") is None
+      and "ambiguous" in (d.get("escalation_reason") or "").lower(),
+      str(d.get("escalation_reason"))[:60])
+
+# H-dedupe — an identical repeated mapping line is deduplicated, not a conflict
+d = run(PROC, source(mutate("REF-03", content=ref03_text + "\n- process_ownership: Ops Manager\n")),
+        draft=draft_out(NEUTRAL))
+check("H identical duplicate mapping line is deduplicated -> draft_pending_approval",
+      d.get("action") == "draft_pending_approval", str(d.get("action")))
+
+# H-direct — load_routing_map itself reports ambiguity via the sentinel
+amb_map = tc.load_routing_map(source(mutate("REF-03", content="- support_channel: CS Lead\n- support_channel: Owner\n")))
+ok_map = tc.load_routing_map(source())
+check("H load_routing_map flags ambiguity and still parses a clean source",
+      tc.ROUTING_AMBIGUOUS in amb_map and ok_map.get("process_ownership") == "Ops Manager",
+      f"amb={amb_map} ok={ok_map.get('process_ownership')}")
+
 # --- report ---
 print("\nInternal-governance gate tests (against the REAL repository sources)")
 print("-" * 72)

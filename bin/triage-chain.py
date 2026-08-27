@@ -365,8 +365,30 @@ _OWNERSHIP_CLAIM_RX = re.compile(
     r"|\b(?:handled|covered|processed)\s+(?:by|in|through)\b"
     r"|\bbelongs?\s+in\b", re.I)
 
+# Imperative ROUTING DIRECTIVES — a draft telling someone where to send the work
+# ("route this to X", "open a ticket in X", "forward it to X"). These commit the
+# company to a routing decision just as much as an ownership assertion does, so
+# they are only allowed when the destination is source-authorized. The capture
+# group holds the destination phrase.
+_ROUTING_DIRECTIVE_RX = re.compile(
+    r"\b(?:please\s+)?(?:route|send|forward|escalate|redirect|reassign|move|log|raise|file|"
+    r"submit|hand(?:\s+off)?|take|push)\s+(?:this|it|that|the\s+\w+|them)?\s*"
+    r"(?:over\s+)?(?:to|in|into|with|through|via)\s+([^.;\n]{2,80})"
+    r"|\bopen\s+(?:a\s+)?(?:ticket|case|task|request)\s+(?:in|with|on|via)\s+([^.;\n]{2,80})"
+    r"|\bcreate\s+(?:a\s+)?(?:ticket|case|task)\s+(?:in|with|on|via)\s+([^.;\n]{2,80})",
+    re.I)
 
-def audit_internal_governance_draft(draft_body, sop_content, domain):
+# Destinations a neutral holding reply may name without source authorisation:
+# a human/review in general, or the approver role the routing source itself
+# selected for this email. Anything else must be grounded in the source.
+_NEUTRAL_DESTINATIONS = (
+    "human review", "a human", "the human", "human", "review", "internal review",
+    "the reviewer", "a reviewer", "the right reviewer", "the team", "our team",
+    "the internal team", "someone", "the appropriate reviewer",
+)
+
+
+def audit_internal_governance_draft(draft_body, sop_content, domain, authorized_role=None):
     """DETERMINISTIC strict auditor for internal-governance drafts.
 
     Returns a dict in the audit_check SCHEMA shape (so it is validated by the
@@ -407,6 +429,28 @@ def audit_internal_governance_draft(draft_body, sop_content, domain):
             r"\bis\s+(?:handled|managed|maintained)\s+by\b|\bresponsible\s+for\b", src))
         if not named or not any(n.lower() in src for n in named) or not source_asserts_relation:
             violations.append("draft asserts an ownership/routing conclusion not supported by the supplied source")
+
+    # Imperative routing directives: a draft may only tell someone where the work
+    # goes when the destination is AUTHORISED — i.e. the approver role the routing
+    # source selected for this email, or a neutral "a human will look at it"
+    # phrase. Merely finding the destination's words somewhere in the supplied SOP
+    # is NOT authorisation (SOP-08 mentions "Gorgias" and "shipping" only as
+    # context), so no source-text pathway is accepted here. One unsupported
+    # directive inside a compound instruction fails the whole draft closed.
+    for dm in _ROUTING_DIRECTIVE_RX.finditer(body):
+        dest = next((g for g in dm.groups() if g), "") or ""
+        dest_l = dest.strip().strip(",.").lower()
+        if not dest_l:
+            continue
+        if authorized_role and authorized_role.lower() in dest_l:
+            continue                                   # the source-authorised approver
+        if any(nd in dest_l for nd in _NEUTRAL_DESTINATIONS):
+            continue                                   # neutral holding reply
+        violations.append(
+            f"draft gives an unsupported routing directive to '{dest.strip()[:40]}' "
+            "which no authorised source designates for this email")
+        break
+
     ok = not violations
     return {
         "pass": ok,
@@ -451,46 +495,72 @@ def detect_governance_domain(email: dict):
     return None
 
 
-def _find_mock_docs(sop_source, *needles):
-    """All documents matching a source role (by filename/title or id)."""
+def _find_mock_docs(sop_source, doc_id, *needles):
+    """All documents that claim a given source identity.
+
+    Identity is the CANONICAL DOCUMENT ID first (e.g. "REF-03"); filename/title
+    matching is only a secondary net so a doc that carries the right name but a
+    missing/renamed id is still considered. This means a conflicting document
+    that shares the ID cannot hide behind a different filename or title.
+    """
     if sop_source is None:
         return []
     out = []
     for s in sop_source.list_sops():
         name = ((s.get("name") or "") + " " + (s.title or "")).lower()
-        if any(n in name for n in needles):
+        if (doc_id and s.id == doc_id) or any(n in name for n in needles):
             out.append(s)
     return out
 
 
-def _find_mock_doc(sop_source, *needles):
-    """The single document for a source role, or None if absent OR if multiple
-    copies exist whose CONTENT conflicts (duplicate/conflicting source -> the
-    caller fails closed). Identical duplicates are not a conflict.
+def _find_mock_doc(sop_source, doc_id, *needles):
+    """The single document for a source identity, or None when it is absent OR
+    when several documents claim that identity with DIFFERENT content (a
+    same-ID/duplicate conflict). Identical duplicates are not a conflict.
     """
-    docs = _find_mock_docs(sop_source, *needles)
+    docs = _find_mock_docs(sop_source, doc_id, *needles)
     if not docs:
         return None
     if len({(d.content or "").strip() for d in docs}) > 1:
-        return None  # conflicting duplicates
+        return None  # conflicting copies of the same source identity
     return docs[0]
+
+
+# Sentinel: the routing source exists but cannot be trusted (ambiguous mapping).
+ROUTING_AMBIGUOUS = "__routing_ambiguous__"
 
 
 def load_routing_map(sop_source):
     """Parse the M1 mock Unified Routing SOP (REF-03) into {domain: role}.
 
-    Returns {} if the mock routing source is absent — the caller then fails
-    closed (escalate, draft=null). This is an M1 TEST source, NOT live-source
-    resolution.
+    Returns:
+      {}                     - the routing source is missing, or duplicate copies
+                               of REF-03 conflict with each other.
+      {ROUTING_AMBIGUOUS: 1} - the source was found but is self-contradictory:
+                               the SAME domain is mapped to DIFFERENT roles
+                               inside one document. Identical duplicate lines are
+                               deduplicated and are not a conflict.
+      {domain: role, ...}    - a usable mapping.
+
+    Either failure makes the caller fail closed (escalate, draft=null). This is
+    an M1 TEST source, NOT live-source resolution.
     """
-    doc = _find_mock_doc(sop_source, "unified_routing", "unified routing")
-    mapping = {}
+    doc = _find_mock_doc(sop_source, "REF-03", "unified_routing", "unified routing")
     if not doc:
-        return mapping
+        return {}
+    mapping, conflicts = {}, set()
     for line in doc.content.splitlines():
         m = re.match(r"\s*[-*]\s*([a-z_]+)\s*:\s*([A-Za-z][A-Za-z /]*[A-Za-z])\s*$", line)
-        if m:
-            mapping[m.group(1).strip()] = m.group(2).strip()
+        if not m:
+            continue
+        domain, role = m.group(1).strip(), m.group(2).strip()
+        if domain in mapping and mapping[domain] != role:
+            conflicts.add(domain)          # same domain, different role
+        mapping[domain] = role             # identical repeats simply dedupe
+    if conflicts:
+        print(f"[chain] routing source REF-03 is ambiguous: {sorted(conflicts)} mapped to "
+              f"multiple roles", file=sys.stderr)
+        return {ROUTING_AMBIGUOUS: "1"}
     return mapping
 
 
@@ -503,7 +573,7 @@ def lookup_role_holders(role, sop_source):
     holders = []
     if not role:
         return holders
-    doc = _find_mock_doc(sop_source, "org_chart", "org chart")
+    doc = _find_mock_doc(sop_source, "REF-04", "org_chart", "org chart")
     if not doc:
         return holders
     for line in doc.content.splitlines():
@@ -706,10 +776,16 @@ def run_engine(email, sop_source, schema_errors, session_tag, scope_label=None):
                 ))
 
             # (item 4) role DERIVED from the mock routing packet (REF-03), not hardcoded.
-            gov_role = load_routing_map(sop_source).get(gov_domain)
+            routing_map = load_routing_map(sop_source)
+            if ROUTING_AMBIGUOUS in routing_map:
+                _gov_escalate("Routing source (REF-03) is ambiguous: a governance domain is mapped "
+                              "to more than one role in the same document; cannot resolve the "
+                              "owning role.", "Owner")
+                return
+            gov_role = routing_map.get(gov_domain)
             if not gov_role:
-                _gov_escalate("Mock routing source (REF-03) missing or has no mapping for this "
-                              "governance domain; cannot resolve the owning role.", "Owner")
+                _gov_escalate("Routing source (REF-03) is missing, conflicting, or has no mapping "
+                              "for this governance domain; cannot resolve the owning role.", "Owner")
                 return
 
             # (item 5c/5d) holder from the mock Org Chart; missing OR ambiguous
@@ -822,7 +898,7 @@ def run_engine(email, sop_source, schema_errors, session_tag, scope_label=None):
                 _gov_escalate(f"Internal draft rejected by {source}: {reason}", gov_role, sop=gov_sop)
 
             det_audit = audit_internal_governance_draft(
-                gdraft["draft_body"], gov_sop_obj.content, gov_domain)
+                gdraft["draft_body"], gov_sop_obj.content, gov_domain, authorized_role=gov_role)
             det_errs = validate("audit_check", det_audit)
             print(f"[chain] audit_internal_governance [deterministic] -> {json.dumps(det_audit)}", file=sys.stderr)
             if det_errs or det_audit.get("pass") is not True or det_audit.get("force_escalate") is not False:
