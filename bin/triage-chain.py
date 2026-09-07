@@ -375,7 +375,20 @@ _ROUTING_DIRECTIVE_RX = re.compile(
     r"submit|hand(?:\s+off)?|take|push)\s+(?:this|it|that|the\s+\w+|them)?\s*"
     r"(?:over\s+)?(?:to|in|into|with|through|via)\s+([^.;\n]{2,80})"
     r"|\bopen\s+(?:a\s+)?(?:ticket|case|task|request)\s+(?:in|with|on|via)\s+([^.;\n]{2,80})"
-    r"|\bcreate\s+(?:a\s+)?(?:ticket|case|task)\s+(?:in|with|on|via)\s+([^.;\n]{2,80})",
+    r"|\bcreate\s+(?:a\s+)?(?:ticket|case|task)\s+(?:in|with|on|via)\s+([^.;\n]{2,80})"
+    # "Use X for this" — the verb takes the destination directly, no preposition.
+    # X must be a named party (Capitalised words), e.g. "Use Shipping CS for this".
+    r"|\b(?:please\s+)?(?:use|go\s+through)\s+((?:the\s+)?[A-Z][\w&/-]*(?:\s+[A-Z][\w&/-]*){0,4})"
+    r"\s+(?:for|to\s+handle|on)\s+(?:this|that|the\s+\w+|it)\b"
+    # "contact / reach out to / check with X" — a contact-style directive. Only
+    # fires when the VERB is followed by a party: an article/possessive + name, or
+    # a Capitalised name. "the right contact or document" (contact as a noun) is
+    # not a directive and must not match.
+    r"|\b(?:please\s+)?(?:contact|reach\s+out\s+to|check\s+with|speak\s+(?:to|with)|"
+    r"talk\s+to|loop\s+in|ping|notify|involve)\s+"
+    r"((?:(?:the|a|an|our|your)\s+)?[A-Za-z][\w&/-]*(?:\s+(?:team|desk|department|group|lead|manager|"
+    r"supervisor|support|portal|CS))?(?:\s+[A-Z][\w&/-]*){0,3})"
+    r"(?=\s+(?:about|regarding|for|to|on|so|and|,|\.|$))",
     re.I)
 
 # Destinations a neutral holding reply may name without source authorisation:

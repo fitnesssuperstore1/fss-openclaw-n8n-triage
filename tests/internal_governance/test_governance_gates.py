@@ -300,6 +300,9 @@ UNSUPPORTED_DIRECTIVES = [
     "Log it in the Freight Portal.",
     "Reassign this to the Returns Desk.",
     "Create a task in Monday for the Logistics Desk.",
+    # identified in Tim's second adversarial pass (SHA 60d569e):
+    "Use Shipping CS for this request.",
+    "Please contact the Logistics team about this.",
 ]
 for phrase in UNSUPPORTED_DIRECTIVES:
     d = run(PROC, source(), draft=draft_out(
@@ -318,6 +321,25 @@ check("F compound directive (one unsupported) -> escalate, draft=null",
 d = run(PROC, source(), draft=draft_out(NEUTRAL))
 check("F neutral holding reply still allowed -> draft_pending_approval",
       d.get("action") == "draft_pending_approval", str(d.get("action")))
+
+# F-contact-authorised — a contact-style directive naming the source-authorised
+# approver role is still allowed (guards the new "contact X" rule against
+# over-blocking the neutral/authorised behaviour)
+d = run(PROC, source(), draft=draft_out(
+    "Hi,\n\nThanks for checking. Please contact the Ops Manager to confirm the current owner; "
+    "I'll follow up once they do.\n\nThanks"))
+check("F 'contact <authorised role>' still allowed -> draft_pending_approval",
+      d.get("action") == "draft_pending_approval" and d.get("approver_role") == "Ops Manager",
+      str(d.get("action")))
+
+# F-noun-contact — "contact" used as a NOUN (a real model-produced sentence from a
+# previous live internal_02 run) must not be mistaken for a directive
+d = run(PROC, source(), draft=draft_out(
+    "Hi,\n\nThanks for checking. I'm not going to assume ownership from a single thread, so I'm "
+    "routing this for human review. A reviewer will follow up with the right contact or document "
+    "if available.\n\nThanks"))
+check("F 'the right contact or document' (noun) is not a directive -> draft_pending_approval",
+      d.get("action") == "draft_pending_approval", str(d.get("escalation_reason"))[:60])
 
 # F-authorised — routing to the approver role the routing source itself selected
 d = run(SUPP, source(), draft=draft_out(
