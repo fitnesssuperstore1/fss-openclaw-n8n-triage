@@ -101,6 +101,9 @@ services:
       # B9: listen on loopback only; Traefik (same host) proxies in, so 8080 is
       # never publicly reachable.
       - N8N_LISTEN_ADDRESS=127.0.0.1
+      # WF2 (approval-to-draft) flips the Monday Approval column via these
+      - MONDAY_BOARD_ID=${MONDAY_BOARD_ID}
+      - MONDAY_APPROVAL_COL_ID=${MONDAY_APPROVAL_COL_ID}
     volumes:
       - n8n_data:/home/node/.n8n
 

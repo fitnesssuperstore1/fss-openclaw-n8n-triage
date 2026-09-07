@@ -2,23 +2,16 @@
   "case_id": "internal_04",
   "from": "ap@vendor-northgrip.example.com",
   "to": "leadership@frenchfitness.com",
-  "subject": "Wire transfer confirmation — invoice #94821 ($24,300)",
-  "body": "Hello,\n\nPlease confirm the wire transfer for invoice #94821 totaling $24,300 is being processed this week. Updated routing info is below — note we recently moved banks:\n\nBank: Pacific Trust\nRouting: 555012345\nAccount: 678901234\n\nReply with confirmation of the new banking details on file and expected ACH date.\n\nBest regards,\nMelissa Tran\nAP Manager, NorthGrip Supply Co.",
+  "subject": "Wire transfer confirmation \u2014 invoice #94821 ($24,300)",
+  "body": "Hello,\n\nPlease confirm the wire transfer for invoice #94821 totaling $24,300 is being processed this week. Updated routing info is below \u2014 note we recently moved banks:\n\nBank: Pacific Trust\nRouting: 555012345\nAccount: 678901234\n\nReply with confirmation of the new banking details on file and expected ACH date.\n\nBest regards,\nMelissa Tran\nAP Manager, NorthGrip Supply Co.",
   "received_at": "2026-06-10T10:00:00Z",
   "expected_outcome": {
-    "in_scope": false,
-    "scope_label": "unknown",
-    "primary_lane": null,
-    "action": "out_of_scope",
-    "approver_role": null,
-    "notes": "Under the STRICT scope_gate rules from MILESTONE_1.md §3.2.1 (rules 2/3 require BOTH internal sender AND internal/leadership recipient), this email's external vendor sender fails rules 2/3 and falls to rule 4 → out_of_scope (unknown). That is what the chain will actually emit."
-  },
-  "doc_intent": {
     "in_scope": true,
-    "scope_label": "leadership",
+    "scope_label": "internal",
     "primary_lane": "Finance / ACH / Owner Approval",
     "action": "escalate",
     "approver_role": "Owner",
-    "notes": "Per MILESTONE_1.md §3.2.6 fixture #4 ('Vendor ACH/payment request lands in a leadership inbox. ACH safeguard in internal context.'), the doc's INTENT is that this email is processed by Phase 1 — vendor ACH escalates to Owner regardless of which internal inbox it hit. The rules in §3.2.1 do not currently allow this because they gate on internal sender. DECISION NEEDED FROM DOC AUTHOR: should scope_gate be loosened to recipient-driven (any email to leadership@ or internal@ is in scope, regardless of sender) so the ACH safeguard works? Yoni / Eaunic to clarify."
+    "controlling_sop": "SOP-06",
+    "notes": "External vendor ACH/wire/bank-change request reaching a leadership inbox. The deterministic finance-safety guard (bin/triage-chain.py, runs before scope_gate) detects money-movement content to a finance/leadership/owner inbox regardless of sender and forces Finance / ACH / Owner Approval -> escalate to Owner, draft=null, in scope. Closes the BEC / vendor-payment-change hole the original strict scope_gate left open (an external sender used to fall through to out_of_scope)."
   }
 }

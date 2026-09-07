@@ -61,6 +61,10 @@ BANNED_TYPE_TOKENS = [
     "postmark",
     "ses.send",
     "twilio.sendsms",   # adjacent: SMS is also customer-visible transmission
+    "slack",            # any Slack node can post/send a message. Phase 1 removed
+                        # Slack entirely, so a Slack node's presence is a violation.
+    "telegram",         # same class of chat-send node
+    "discord",
 ]
 
 # Banned tokens in node.parameters.operation — Gmail/IMAP nodes are okay if

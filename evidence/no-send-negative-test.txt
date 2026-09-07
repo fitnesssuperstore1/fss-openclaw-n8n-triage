@@ -1,0 +1,13 @@
+# verify_no_send.sh negative-test suite — run 2026-07-02T20:41Z
+
+UNSAFE fixtures — verify_no_send MUST fail (exit 1):
+  OK    exit 1 (want 1)  unsafe_email_send.json
+  OK    exit 1 (want 1)  unsafe_gmail_reply.json
+  OK    exit 1 (want 1)  unsafe_gmail_send.json
+  OK    exit 1 (want 1)  unsafe_slack_send.json
+SAFE workflows — verify_no_send MUST pass (exit 0):
+  OK    exit 0 (want 0)  safe_draft_only.json
+  OK    exit 0 (want 0)  fitness-triage.workflow.json
+  OK    exit 0 (want 0)  fs-approval-to-draft.workflow.json
+----------------------------------------------------------------------
+ALL AS EXPECTED — the no-send guard catches every send/reply/forward/slack node.

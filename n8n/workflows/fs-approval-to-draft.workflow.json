@@ -100,7 +100,7 @@
             {
               "id": "cond-col",
               "leftValue": "={{ $('Monday Webhook').item.json.body.event.columnId }}",
-              "rightValue": "color_mm45eqw3",
+              "rightValue": "={{ $env.MONDAY_APPROVAL_COL_ID }}",
               "operator": {
                 "type": "string",
                 "operation": "equals"
@@ -128,7 +128,7 @@
         224,
         256
       ],
-      "notes": "Only act on changes to the Approval status column when the new value is 'Approved'. columnId color_mm45eqw3 is the Approval column on board 18416933791."
+      "notes": "Only act on changes to the Approval status column when the new value is 'Approved'. The Approval column is identified by $env.MONDAY_APPROVAL_COL_ID on the board $env.MONDAY_BOARD_ID."
     },
     {
       "parameters": {
@@ -243,7 +243,7 @@
           "name": "REPLACE_ME"
         }
       },
-      "notes": "Same Gmail credential as the main workflow (np9bdfleWVRNhyXu). Creates the holding draft — human still has to click Send."
+      "notes": "Uses the same Gmail credential as the main workflow (connect it in the n8n UI). Creates the holding draft — human still has to click Send."
     },
     {
       "parameters": {
@@ -266,7 +266,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: 'mutation($b:ID!,$i:ID!,$c:String!,$v:String!){ change_simple_column_value(board_id:$b,item_id:$i,column_id:$c,value:$v){ id } }', variables: { b: '18416933791', i: String($('Parse decision JSON').item.json.pulseId), c: 'color_mm45eqw3', v: 'Draft Ready' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ query: 'mutation($b:ID!,$i:ID!,$c:String!,$v:String!){ change_simple_column_value(board_id:$b,item_id:$i,column_id:$c,value:$v){ id } }', variables: { b: $env.MONDAY_BOARD_ID, i: String($('Parse decision JSON').item.json.pulseId), c: $env.MONDAY_APPROVAL_COL_ID, v: 'Draft Ready' } }) }}",
         "options": {}
       },
       "id": "cf8b4d89-89fa-47b6-825c-8da2358edbaa",

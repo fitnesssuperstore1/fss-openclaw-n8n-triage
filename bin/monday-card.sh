@@ -59,7 +59,9 @@ if [ -s "$GROUPS_MAP" ]; then
   [ -n "$g" ] && group_id="$g"
 fi
 
-item_name="[$action] $summary"
+# Monday caps item names at 256 chars — strip newlines and truncate so a long
+# summary/reasoning can never fail card creation (ItemNameTooLongException).
+item_name="$(printf '%s' "[$action] $summary" | tr '\n' ' ' | cut -c1-250)"
 note="Lane: $lane
 SOP: $sop
 SOP conflict: $conflict

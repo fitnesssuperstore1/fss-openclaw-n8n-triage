@@ -46,6 +46,17 @@ Validation that downstream code applies (do not violate):
 
 ## Hard rules (apply in this exact order — earlier rules override later ones)
 
+0. **FINANCE / PAYMENT SAFETY — overrides every rule below.**
+   If the `to` field is a finance / accounts / owner / internal-triage inbox — any of
+   `accounts@`, `accounts-payable@`, `ap@`, `finance@`, `billing@`, `invoicing@`,
+   `owner@`, `treasury@`, `controller@`, `triage@`, or a leadership inbox — **AND** the
+   email concerns **money movement** (ACH, wire, payment, invoice/remittance, bank /
+   account / routing details, or a request to change/confirm/verify any of these)
+   → `in_scope: true`, `scope_label: "internal"` (or `"leadership"` for a leadership inbox).
+   This holds **even when the sender is external or unknown.** Vendor payment-change and
+   possible BEC/fraud emails must reach a human (Owner review) and must NEVER be dropped
+   as `gorgias_owned` or `unknown`. Do not apply the rules below when this matches.
+
 1. **Customer-facing recipient address → out of scope (Gorgias-owned).**
    If the `to` field contains any of the following address fragments (case-insensitive):
    - `sales@`

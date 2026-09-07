@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "fitness-superstore/draft_response.json",
   "title": "draft_response output",
-  "description": "Strict output schema for the draft_response OpenClaw skill. approval_required is hard-locked to true in Phase 1. draft_body must end with the standard DRAFT marker line.",
+  "description": "Strict output schema for the draft_response OpenClaw skill. approval_required is hard-locked to true in Phase 1. draft_body must be a clean customer-facing reply with no internal metadata (no DRAFT marker, lane names, or SOP ids — those live in the Monday card / audit fields only).",
   "type": "object",
   "required": [
     "draft_subject",
@@ -23,8 +23,10 @@
       "type": "string",
       "minLength": 40,
       "maxLength": 4000,
-      "description": "Must end with: [DRAFT — pending human approval | lane: <lane> | SOP: <id> (Active)]",
-      "pattern": "\\[DRAFT.*pending human approval.*lane:.*SOP:.*\\(Active\\)\\][\\s]*$"
+      "description": "Clean customer-facing reply only. Must NOT contain internal metadata: no [DRAFT ...] footer, no 'pending human approval' marker, no lane names, no SOP/REF/ARCH ids. That metadata lives in the Monday card/audit fields only.",
+      "not": {
+        "pattern": "(?i)\\[draft|pending human approval|lane:|\\bSOP-\\d|\\bREF-\\d|\\bARCH-\\d"
+      }
     },
     "approval_required": {
       "type": "boolean",
@@ -32,7 +34,11 @@
     },
     "approver_role": {
       "type": "string",
-      "enum": ["CS Lead", "Ops Manager", "Owner"]
+      "enum": [
+        "CS Lead",
+        "Ops Manager",
+        "Owner"
+      ]
     },
     "tone_notes": {
       "type": "string",
@@ -41,7 +47,11 @@
     },
     "uncommitted_items": {
       "type": "array",
-      "items": { "type": "string", "minLength": 3, "maxLength": 200 },
+      "items": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 200
+      },
       "maxItems": 20
     }
   }

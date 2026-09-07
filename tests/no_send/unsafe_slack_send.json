@@ -1,0 +1,1 @@
+{"name":"UNSAFE — slack send","nodes":[{"name":"Slack","type":"n8n-nodes-base.slack","parameters":{"resource":"message","operation":"post"}}],"connections":{}}

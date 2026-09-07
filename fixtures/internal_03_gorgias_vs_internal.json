@@ -1,9 +1,9 @@
 {
   "case_id": "internal_03",
-  "from": "ops.dana@frenchfitness.com",
+  "from": "ops.analyst@frenchfitness.com",
   "to": "ops@frenchfitness.com",
   "subject": "[internal] Scope question \u2014 freight delay email from a customer",
-  "body": "Hey ops team,\n\nGot an email from a customer about a freight delay on a power rack \u2014 does this go through our internal Gmail triage or is this fully Gorgias-owned now? I forwarded it to my inbox in case you want to look at the chain, but I want to confirm the routing before I respond.\n\nThanks,\nDana (ops)",
+  "body": "Hey ops team,\n\nGot an email from a customer about a freight delay on a power rack \u2014 does this go through our internal Gmail triage or is this fully Gorgias-owned now? I forwarded it to my inbox in case you want to look at the chain, but I want to confirm the routing before I respond.\n\nThanks,\nOps Analyst",
   "received_at": "2026-06-10T09:45:00Z",
   "expected_outcome": {
     "in_scope": true,
@@ -12,6 +12,6 @@
     "action": "draft_pending_approval",
     "approver_role": "CS Lead",
     "controlling_sop": "SOP-08",
-    "notes": "Meta/routing question from internal ops \u2014 classify_email Rule 2 catches the meta framing ('scope question', 'does this go through', 'is this fully Gorgias-owned') and routes to Escalate / Needs Human Review even though body mentions 'freight delay'. select_sop matches SOP-08 (Support Channel Conflict). Chain drafts an internal-reply that asks the asker to surface both the Gmail and Gorgias contexts to CS Lead \u2014 CS Lead approves before send. The freight-delay mention is incidental context, NOT the email's purpose."
+    "notes": "Internal support-channel routing question. SOP-08 (Active) states that conflicting channels are surfaced to a human who reconciles them \u2014 it does NOT assert that the issue belongs to Gorgias / Shipping CS, so the engine never asserts that either (the previous code-append was removed). Drafts a neutral holding reply pending CS Lead approval, flagging that channel ownership is unconfirmed pending human reconciliation per SOP-08."
   }
 }

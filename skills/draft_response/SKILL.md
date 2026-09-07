@@ -43,8 +43,14 @@ Validation that downstream code applies (do not violate):
 - `approval_required` MUST be the literal boolean `true`.
 - `approver_role` MUST be exactly one of `CS Lead`, `Ops Manager`, `Owner`.
 - `uncommitted_items` MUST be an array (may be empty).
-- `draft_body` MUST end with a final line in this exact format:
-  `[DRAFT — pending human approval | lane: <lane> | SOP: <sop_id> (Active)]`
+- `draft_body` MUST be a clean, customer-facing reply ONLY: greeting, answer,
+  next step, sign-off. Do NOT append any status/approval footer or bracketed
+  marker line, and do NOT include lane names, SOP/REF/ARCH ids, internal policy
+  names, or "pending approval" wording anywhere in the body. All internal
+  metadata lives ONLY in the Monday card / audit fields — never in the body the
+  customer would see. The approval-pending state is tracked by the workflow and
+  the Monday "Awaiting Review" status, not by any text inside the draft. The
+  body must end with the sign-off — nothing after it.
 - No fields outside the schema. No commentary before or after the JSON.
 
 ## Hard rules — the no-promise list

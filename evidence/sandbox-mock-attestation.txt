@@ -1,0 +1,19 @@
+# Fix #5 — sandbox / mock data only (attestation)
+
+Verified across the milestone-1-critical-fixes branch:
+
+- .env.example: every value is a placeholder (replace-me / example.com). No real
+  credentials committed.
+- Real deployment config (config/monday-groups.json, config/env.sh) is
+  git-ignored; only *.example templates are committed.
+- No Shopify or Gorgias credentials/API keys anywhere. The `shopify`/`gorgias`
+  fields in the fixtures are mock test data (fake order/ticket ids such as
+  FS-10241, GOR-3391) used only to exercise the engine — no real Shopify/Gorgias
+  access is wired or required.
+- All fixture email addresses use mock domains only: example.com / *.example.com
+  / frenchfitness.com. (one real-ish personal domain in a fixture was swapped to the mock company domain.)
+- No production Gmail inbox, Monday board id, or API keys are committed. Gmail
+  user, Monday board/column ids, and Drive SOP folder ids are env-driven
+  placeholders.
+- Sweep this round: 0 personal emails / paths / contractor names / hardcoded
+  Monday ids / real folder ids / API secrets.
